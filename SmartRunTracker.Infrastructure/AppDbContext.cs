@@ -1,0 +1,261 @@
+﻿using Microsoft.EntityFrameworkCore;
+using SmartRunTracker.Domain.Entities;
+using SmartRunTracker.Domain.Enums;
+
+namespace SmartRunTracker.Infrastructure.Persistence;
+
+public class AppDbContext : DbContext
+{
+    public AppDbContext(DbContextOptions<AppDbContext> options)
+        : base(options)
+    {
+    }
+
+    public DbSet<User> Users => Set<User>();
+    public DbSet<RunnerProfile> RunnerProfiles => Set<RunnerProfile>();
+    public DbSet<RunningGoal> RunningGoals => Set<RunningGoal>();
+    public DbSet<Workout> Workouts => Set<Workout>();
+    public DbSet<TrainingWeek> TrainingWeeks => Set<TrainingWeek>();
+    public DbSet<PlannedSession> PlannedSessions => Set<PlannedSession>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        ConfigureUsers(modelBuilder);
+        ConfigureRunnerProfiles(modelBuilder);
+        ConfigureRunningGoals(modelBuilder);
+        ConfigureWorkouts(modelBuilder);
+        ConfigureTrainingWeeks(modelBuilder);
+        ConfigurePlannedSessions(modelBuilder);
+    }
+
+    private static void ConfigureUsers(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.ToTable("users");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.DisplayName)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.Email)
+                .HasMaxLength(255);
+
+            entity.Property(x => x.CreatedAt)
+                .IsRequired();
+
+            entity.HasIndex(x => x.Email)
+                .IsUnique();
+        });
+    }
+
+    private static void ConfigureRunnerProfiles(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<RunnerProfile>(entity =>
+        {
+            entity.ToTable("runner_profiles");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.PreferredWorkoutsPerWeek)
+                .IsRequired();
+
+            entity.Property(x => x.CreatedAt)
+                .IsRequired();
+
+            entity.HasOne(x => x.User)
+                .WithOne(x => x.RunnerProfile)
+                .HasForeignKey<RunnerProfile>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.UserId)
+                .IsUnique();
+        });
+    }
+
+    private static void ConfigureRunningGoals(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<RunningGoal>(entity =>
+        {
+            entity.ToTable("running_goals");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.TargetDistanceKm)
+                .HasPrecision(5, 2)
+                .IsRequired();
+
+            entity.Property(x => x.TargetPaceSecondsPerKm)
+                .IsRequired();
+
+            entity.Property(x => x.GoalDate);
+
+            entity.Property(x => x.IsActive)
+                .IsRequired();
+
+            entity.Property(x => x.CreatedAt)
+                .IsRequired();
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.RunningGoals)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureWorkouts(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Workout>(entity =>
+        {
+            entity.ToTable("workouts");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.StartedAt)
+                .IsRequired();
+
+            entity.Property(x => x.DistanceKm)
+                .HasPrecision(6, 2)
+                .IsRequired();
+
+            entity.Property(x => x.DurationSeconds)
+                .IsRequired();
+
+            entity.Property(x => x.Rpe)
+                .IsRequired();
+
+            entity.Property(x => x.Type)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(x => x.Source)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(x => x.Notes)
+                .HasMaxLength(1000);
+
+            entity.Property(x => x.CreatedAt)
+                .IsRequired();
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.Workouts)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.PlannedSession)
+                .WithOne(x => x.CompletedWorkout)
+                .HasForeignKey<Workout>(x => x.PlannedSessionId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.StartedAt);
+        });
+    }
+
+    private static void ConfigureTrainingWeeks(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TrainingWeek>(entity =>
+        {
+            entity.ToTable("training_weeks");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.WeekStartDate)
+                .IsRequired();
+
+            entity.Property(x => x.TargetWorkoutCount)
+                .IsRequired();
+
+            entity.Property(x => x.AdjustmentMode)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(x => x.TargetWeekDurationSeconds)
+                .IsRequired();
+
+            entity.Property(x => x.Status)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(x => x.Explanation)
+                .HasMaxLength(2000);
+
+            entity.Property(x => x.GeneratedAt)
+                .IsRequired();
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.TrainingWeeks)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.RunningGoal)
+                .WithMany(x => x.TrainingWeeks)
+                .HasForeignKey(x => x.RunningGoalId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasIndex(x => new { x.UserId, x.WeekStartDate })
+                .IsUnique();
+        });
+    }
+
+    private static void ConfigurePlannedSessions(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<PlannedSession>(entity =>
+        {
+            entity.ToTable("planned_sessions");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Type)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(x => x.Intensity)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(x => x.TargetDurationSeconds)
+                .IsRequired();
+
+            entity.Property(x => x.TargetDistanceKm)
+                .HasPrecision(6, 2);
+
+            entity.Property(x => x.TargetPaceSecondsPerKm);
+
+            entity.Property(x => x.ScheduledFor);
+
+            entity.Property(x => x.Status)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(x => x.Notes)
+                .HasMaxLength(1000);
+
+            entity.Property(x => x.Reason)
+                .HasMaxLength(1000);
+
+            entity.Property(x => x.SortOrder)
+                .IsRequired();
+
+            entity.HasOne(x => x.TrainingWeek)
+                .WithMany(x => x.PlannedSessions)
+                .HasForeignKey(x => x.TrainingWeekId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.TrainingWeekId);
+            entity.HasIndex(x => x.ScheduledFor);
+        });
+    }
+}
