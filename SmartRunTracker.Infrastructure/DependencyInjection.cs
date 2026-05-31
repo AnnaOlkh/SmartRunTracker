@@ -1,7 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using SmartRunTracker.Application.Common;
+using SmartRunTracker.Application.RunnerProfiles;
+using SmartRunTracker.Application.RunningGoals;
+using SmartRunTracker.Application.Workouts;
 using SmartRunTracker.Infrastructure.Persistence;
+using SmartRunTracker.Infrastructure.Persistence.Repositories;
+using SmartRunTracker.Infrastructure.Persistence.Services;
 
 namespace SmartRunTracker.Infrastructure;
 
@@ -17,6 +23,11 @@ public static class DependencyInjection
         {
             options.UseNpgsql(connectionString);
         });
+
+        services.AddScoped<IWorkoutRepository, WorkoutRepository>();
+        services.AddScoped<IDemoUserService, DemoUserService>();
+        services.AddScoped<IRunnerProfileRepository, RunnerProfileRepository>();
+        services.AddScoped<IRunningGoalRepository, RunningGoalRepository>();
 
         return services;
     }
