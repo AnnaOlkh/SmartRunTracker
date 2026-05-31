@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Workout> Workouts => Set<Workout>();
     public DbSet<TrainingWeek> TrainingWeeks => Set<TrainingWeek>();
     public DbSet<PlannedSession> PlannedSessions => Set<PlannedSession>();
+    public DbSet<RunnerAvailableDay> RunnerAvailableDays => Set<RunnerAvailableDay>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,6 +29,7 @@ public class AppDbContext : DbContext
         ConfigureWorkouts(modelBuilder);
         ConfigureTrainingWeeks(modelBuilder);
         ConfigurePlannedSessions(modelBuilder);
+        ConfigureRunnerAvailableDays(modelBuilder);
     }
 
     private static void ConfigureUsers(ModelBuilder modelBuilder)
@@ -64,8 +66,15 @@ public class AppDbContext : DbContext
             entity.Property(x => x.PreferredWorkoutsPerWeek)
                 .IsRequired();
 
+            entity.Property(x => x.TrainingDayPreferenceMode)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
             entity.Property(x => x.CreatedAt)
                 .IsRequired();
+
+            entity.Property(x => x.UpdatedAt);
 
             entity.HasOne(x => x.User)
                 .WithOne(x => x.RunnerProfile)
@@ -256,6 +265,28 @@ public class AppDbContext : DbContext
 
             entity.HasIndex(x => x.TrainingWeekId);
             entity.HasIndex(x => x.ScheduledFor);
+        });
+    }
+    private static void ConfigureRunnerAvailableDays(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<RunnerAvailableDay>(entity =>
+        {
+            entity.ToTable("runner_available_days");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Day)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.HasOne(x => x.RunnerProfile)
+                .WithMany(x => x.AvailableDays)
+                .HasForeignKey(x => x.RunnerProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => new { x.RunnerProfileId, x.Day })
+                .IsUnique();
         });
     }
 }
