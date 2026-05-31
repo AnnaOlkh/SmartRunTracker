@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SmartRunTracker.Application.Common;
 using SmartRunTracker.Application.RunnerProfiles;
 using SmartRunTracker.Application.RunningGoals;
+using SmartRunTracker.Application.TrainingPlans;
 using SmartRunTracker.Application.Workouts;
 using SmartRunTracker.Infrastructure.Persistence;
 using SmartRunTracker.Infrastructure.Persistence.Repositories;
@@ -28,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IDemoUserService, DemoUserService>();
         services.AddScoped<IRunnerProfileRepository, RunnerProfileRepository>();
         services.AddScoped<IRunningGoalRepository, RunningGoalRepository>();
+        services.AddScoped<ITrainingPlanRepository, TrainingPlanRepository>();
 
         return services;
     }

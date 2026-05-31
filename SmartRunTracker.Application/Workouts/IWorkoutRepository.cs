@@ -8,6 +8,12 @@ public interface IWorkoutRepository
         int userId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<Workout>> GetRecentAsync(
+       int userId,
+       DateTimeOffset from,
+       DateTimeOffset to,
+       CancellationToken cancellationToken = default);
+
     Task<Workout?> GetByIdAsync(
         int userId,
         int workoutId,

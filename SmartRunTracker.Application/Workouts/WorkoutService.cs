@@ -1,4 +1,5 @@
-﻿using SmartRunTracker.Domain.Entities;
+﻿using SmartRunTracker.Application.TrainingPlans;
+using SmartRunTracker.Domain.Entities;
 using SmartRunTracker.Domain.Enums;
 
 namespace SmartRunTracker.Application.Workouts;
@@ -6,10 +7,14 @@ namespace SmartRunTracker.Application.Workouts;
 public sealed class WorkoutService : IWorkoutService
 {
     private readonly IWorkoutRepository _workoutRepository;
+    private readonly ITrainingPlanRepository _trainingPlanRepository;
 
-    public WorkoutService(IWorkoutRepository workoutRepository)
+    public WorkoutService(
+        IWorkoutRepository workoutRepository,
+        ITrainingPlanRepository trainingPlanRepository)
     {
         _workoutRepository = workoutRepository;
+        _trainingPlanRepository = trainingPlanRepository;
     }
 
     public async Task<IReadOnlyList<WorkoutDto>> GetAllAsync(
@@ -43,6 +48,28 @@ public sealed class WorkoutService : IWorkoutService
     {
         ValidateCreateRequest(request);
 
+        PlannedSession? plannedSession = null;
+
+        if (request.PlannedSessionId is not null)
+        {
+            plannedSession = await _trainingPlanRepository.GetPlannedSessionByIdAsync(
+                userId,
+                request.PlannedSessionId.Value,
+                cancellationToken);
+
+            if (plannedSession is null)
+            {
+                throw new ArgumentException(
+                    "Planned session was not found for this user.");
+            }
+
+            if (plannedSession.Status == PlannedSessionStatus.Completed)
+            {
+                throw new ArgumentException(
+                    "Planned session is already completed.");
+            }
+        }
+
         var workout = new Workout
         {
             UserId = userId,
@@ -60,6 +87,16 @@ public sealed class WorkoutService : IWorkoutService
         var createdWorkout = await _workoutRepository.AddAsync(
             workout,
             cancellationToken);
+
+        if (plannedSession is not null)
+        {
+            plannedSession.Status = PlannedSessionStatus.Completed;
+            plannedSession.ScheduledFor ??= request.StartedAt;
+
+            await _trainingPlanRepository.UpdatePlannedSessionAsync(
+                plannedSession,
+                cancellationToken);
+        }
 
         return ToDto(createdWorkout);
     }

@@ -7,5 +7,6 @@ public sealed record TrainingWeekGenerationInput(
     RunningGoal ActiveGoal,
     RunnerProfile RunnerProfile,
     IReadOnlyList<Workout> RecentWorkouts,
+    IReadOnlyList<PlannedSession> RecentPlannedSessions,
     DateOnly WeekStartDate
 );

@@ -24,6 +24,20 @@ public sealed class WorkoutRepository : IWorkoutRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Workout>> GetRecentAsync(
+       int userId,
+       DateTimeOffset from,
+       DateTimeOffset to,
+       CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Workouts
+            .AsNoTracking()
+            .Where(workout => workout.UserId == userId)
+            .Where(workout => workout.StartedAt >= from && workout.StartedAt < to)
+            .OrderByDescending(workout => workout.StartedAt)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<Workout?> GetByIdAsync(
         int userId,
         int workoutId,
