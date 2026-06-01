@@ -132,9 +132,9 @@ public sealed class WorkoutService : IWorkoutService
     }
 
     public async Task<bool> DeleteAsync(
-        int userId,
-        int workoutId,
-        CancellationToken cancellationToken = default)
+    int userId,
+    int workoutId,
+    CancellationToken cancellationToken = default)
     {
         var workout = await _workoutRepository.GetByIdAsync(
             userId,
@@ -144,6 +144,25 @@ public sealed class WorkoutService : IWorkoutService
         if (workout is null)
         {
             return false;
+        }
+
+        if (workout.PlannedSessionId is not null)
+        {
+            var plannedSession = await _trainingPlanRepository.GetPlannedSessionByIdAsync(
+                userId,
+                workout.PlannedSessionId.Value,
+                cancellationToken);
+
+            if (plannedSession is not null
+                && plannedSession.Status == PlannedSessionStatus.Completed)
+            {
+                plannedSession.Status = ResolveStatusAfterWorkoutDelete(
+                    plannedSession.ScheduledFor);
+
+                await _trainingPlanRepository.UpdatePlannedSessionAsync(
+                    plannedSession,
+                    cancellationToken);
+            }
         }
 
         await _workoutRepository.DeleteAsync(workout, cancellationToken);
@@ -187,7 +206,21 @@ public sealed class WorkoutService : IWorkoutService
             throw new ArgumentException("RPE must be between 1 and 10.");
         }
     }
+    private static PlannedSessionStatus ResolveStatusAfterWorkoutDelete(
+    DateTimeOffset? scheduledFor)
+    {
+        if (scheduledFor is null)
+        {
+            return PlannedSessionStatus.Unscheduled;
+        }
 
+        if (scheduledFor < DateTimeOffset.UtcNow)
+        {
+            return PlannedSessionStatus.Skipped;
+        }
+
+        return PlannedSessionStatus.Scheduled;
+    }
     private static WorkoutDto ToDto(Workout workout)
     {
         var averagePaceSecondsPerKm = CalculateAveragePaceSecondsPerKm(workout);

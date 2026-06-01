@@ -42,6 +42,19 @@ public sealed class RunningGoalService : IRunningGoalService
     {
         ValidateRequest(request);
 
+        var duplicateExists = await _runningGoalRepository.EquivalentGoalExistsAsync(
+            userId,
+            request.TargetDistanceKm,
+            request.TargetPaceSecondsPerKm,
+            request.GoalDate,
+            cancellationToken);
+
+        if (duplicateExists)
+        {
+            throw new ArgumentException(
+                "Running goal with the same distance, pace and date already exists.");
+        }
+
         await _runningGoalRepository.DeactivateActiveGoalsAsync(
             userId,
             cancellationToken);
@@ -63,6 +76,54 @@ public sealed class RunningGoalService : IRunningGoalService
         return ToDto(createdGoal);
     }
 
+    public async Task<RunningGoalDto?> ActivateAsync(
+        int userId,
+        int goalId,
+        CancellationToken cancellationToken = default)
+    {
+        var goal = await _runningGoalRepository.GetByIdAsync(
+            userId,
+            goalId,
+            cancellationToken);
+
+        if (goal is null)
+        {
+            return null;
+        }
+
+        ValidateGoalDateIsNotPast(goal.GoalDate);
+
+        await _runningGoalRepository.DeactivateActiveGoalsAsync(
+            userId,
+            cancellationToken);
+
+        goal.IsActive = true;
+
+        await _runningGoalRepository.UpdateAsync(goal, cancellationToken);
+
+        return ToDto(goal);
+    }
+
+    public async Task<bool> DeleteAsync(
+        int userId,
+        int goalId,
+        CancellationToken cancellationToken = default)
+    {
+        var goal = await _runningGoalRepository.GetByIdAsync(
+            userId,
+            goalId,
+            cancellationToken);
+
+        if (goal is null)
+        {
+            return false;
+        }
+
+        await _runningGoalRepository.DeleteAsync(goal, cancellationToken);
+
+        return true;
+    }
+
     private static void ValidateRequest(CreateRunningGoalRequest request)
     {
         if (request.TargetDistanceKm <= 0)
@@ -75,6 +136,24 @@ public sealed class RunningGoalService : IRunningGoalService
         {
             throw new ArgumentException(
                 "Target pace must be greater than zero.");
+        }
+
+        ValidateGoalDateIsNotPast(request.GoalDate);
+    }
+
+    private static void ValidateGoalDateIsNotPast(DateOnly? goalDate)
+    {
+        if (goalDate is null)
+        {
+            return;
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        if (goalDate < today)
+        {
+            throw new ArgumentException(
+                "Goal date cannot be in the past.");
         }
     }
 

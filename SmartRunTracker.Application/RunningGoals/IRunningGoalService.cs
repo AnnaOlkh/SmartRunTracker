@@ -14,4 +14,14 @@ public interface IRunningGoalService
         int userId,
         CreateRunningGoalRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<RunningGoalDto?> ActivateAsync(
+        int userId,
+        int goalId,
+        CancellationToken cancellationToken = default);
+
+    Task<bool> DeleteAsync(
+        int userId,
+        int goalId,
+        CancellationToken cancellationToken = default);
 }

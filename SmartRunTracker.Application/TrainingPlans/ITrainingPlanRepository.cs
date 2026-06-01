@@ -36,4 +36,9 @@ public interface ITrainingPlanRepository
     Task UpdatePlannedSessionAsync(
         PlannedSession plannedSession,
         CancellationToken cancellationToken = default);
+
+    Task MarkOverdueScheduledSessionsAsSkippedAsync(
+    int userId,
+    DateTimeOffset now,
+    CancellationToken cancellationToken = default);
 }

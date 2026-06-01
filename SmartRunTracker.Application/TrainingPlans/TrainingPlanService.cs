@@ -33,6 +33,8 @@ public sealed class TrainingPlanService : ITrainingPlanService
         GenerateTrainingWeekRequest request,
         CancellationToken cancellationToken = default)
     {
+        await MarkOverdueSessionsAsync(userId, cancellationToken);
+
         var existingWeek = await _trainingPlanRepository.GetByWeekStartDateAsync(
             userId,
             request.WeekStartDate,
@@ -120,6 +122,8 @@ public sealed class TrainingPlanService : ITrainingPlanService
         int userId,
         CancellationToken cancellationToken = default)
     {
+        await MarkOverdueSessionsAsync(userId, cancellationToken);
+
         var weeks = await _trainingPlanRepository.GetWeeksAsync(
             userId,
             cancellationToken);
@@ -134,6 +138,7 @@ public sealed class TrainingPlanService : ITrainingPlanService
         int trainingWeekId,
         CancellationToken cancellationToken = default)
     {
+        await MarkOverdueSessionsAsync(userId, cancellationToken);
         var week = await _trainingPlanRepository.GetWeekByIdAsync(
             userId,
             trainingWeekId,
@@ -156,6 +161,11 @@ public sealed class TrainingPlanService : ITrainingPlanService
         if (session is null)
         {
             return null;
+        }
+        if (request.ScheduledFor < DateTimeOffset.UtcNow)
+        {
+            throw new InvalidOperationException(
+                "Planned session cannot be scheduled in the past.");
         }
 
         if (session.Status == PlannedSessionStatus.Completed)
@@ -229,7 +239,15 @@ public sealed class TrainingPlanService : ITrainingPlanService
             profile,
             cancellationToken);
     }
-
+    private async Task MarkOverdueSessionsAsync(
+    int userId,
+    CancellationToken cancellationToken)
+    {
+        await _trainingPlanRepository.MarkOverdueScheduledSessionsAsSkippedAsync(
+            userId,
+            DateTimeOffset.UtcNow,
+            cancellationToken);
+    }
     private static TrainingWeekDto ToDto(TrainingWeek week)
     {
         var plannedSessions = week.PlannedSessions

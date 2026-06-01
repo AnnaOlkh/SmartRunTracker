@@ -70,4 +70,50 @@ public sealed class RunningGoalsController : ControllerBase
             });
         }
     }
+
+    [HttpPatch("{id:int}/activate")]
+    public async Task<ActionResult<RunningGoalDto>> Activate(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var goal = await _runningGoalService.ActivateAsync(
+                DemoUser.Id,
+                id,
+                cancellationToken);
+
+            if (goal is null)
+            {
+                return NotFound();
+            }
+
+            return Ok(goal);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new
+            {
+                message = exception.Message
+            });
+        }
+    }
+
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var deleted = await _runningGoalService.DeleteAsync(
+            DemoUser.Id,
+            id,
+            cancellationToken);
+
+        if (!deleted)
+        {
+            return NotFound();
+        }
+
+        return NoContent();
+    }
 }

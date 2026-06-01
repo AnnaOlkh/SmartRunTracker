@@ -34,7 +34,33 @@ public sealed class RunningGoalRepository : IRunningGoalRepository
             .OrderByDescending(goal => goal.CreatedAt)
             .ToListAsync(cancellationToken);
     }
+    public async Task<RunningGoal?> GetByIdAsync(
+        int userId,
+        int goalId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.RunningGoals
+            .FirstOrDefaultAsync(
+                goal => goal.Id == goalId && goal.UserId == userId,
+                cancellationToken);
+    }
 
+    public async Task<bool> EquivalentGoalExistsAsync(
+        int userId,
+        decimal targetDistanceKm,
+        int targetPaceSecondsPerKm,
+        DateOnly? goalDate,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.RunningGoals
+            .AnyAsync(
+                goal =>
+                    goal.UserId == userId
+                    && goal.TargetDistanceKm == targetDistanceKm
+                    && goal.TargetPaceSecondsPerKm == targetPaceSecondsPerKm
+                    && goal.GoalDate == goalDate,
+                cancellationToken);
+    }
     public async Task DeactivateActiveGoalsAsync(
         int userId,
         CancellationToken cancellationToken = default)
@@ -59,5 +85,19 @@ public sealed class RunningGoalRepository : IRunningGoalRepository
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return goal;
+    }
+    public async Task UpdateAsync(
+    RunningGoal goal,
+    CancellationToken cancellationToken = default)
+    {
+        _dbContext.RunningGoals.Update(goal);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+    public async Task DeleteAsync(
+       RunningGoal goal,
+       CancellationToken cancellationToken = default)
+    {
+        _dbContext.RunningGoals.Remove(goal);
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 }
