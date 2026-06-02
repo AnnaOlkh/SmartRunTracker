@@ -1,6 +1,7 @@
 ﻿using SmartRunTracker.Application.TrainingPlans;
 using SmartRunTracker.Domain.Entities;
 using SmartRunTracker.Domain.Enums;
+using SmartRunTracker.Application.Workouts.Analysis;
 
 namespace SmartRunTracker.Application.Workouts;
 
@@ -8,13 +9,16 @@ public sealed class WorkoutService : IWorkoutService
 {
     private readonly IWorkoutRepository _workoutRepository;
     private readonly ITrainingPlanRepository _trainingPlanRepository;
+    private readonly IPlannedVsActualAnalyzer _plannedVsActualAnalyzer;
 
     public WorkoutService(
-        IWorkoutRepository workoutRepository,
-        ITrainingPlanRepository trainingPlanRepository)
+    IWorkoutRepository workoutRepository,
+    ITrainingPlanRepository trainingPlanRepository,
+    IPlannedVsActualAnalyzer plannedVsActualAnalyzer)
     {
         _workoutRepository = workoutRepository;
         _trainingPlanRepository = trainingPlanRepository;
+        _plannedVsActualAnalyzer = plannedVsActualAnalyzer;
     }
 
     public async Task<IReadOnlyList<WorkoutDto>> GetAllAsync(
@@ -41,6 +45,18 @@ public sealed class WorkoutService : IWorkoutService
         return workout is null ? null : ToDto(workout);
     }
 
+    public async Task<WorkoutDetailsDto?> GetDetailsAsync(
+    int userId,
+    int workoutId,
+    CancellationToken cancellationToken = default)
+    {
+        var workout = await _workoutRepository.GetDetailsByIdAsync(
+            userId,
+            workoutId,
+            cancellationToken);
+
+        return workout is null ? null : ToDetailsDto(workout);
+    }
     public async Task<WorkoutDto> CreateAsync(
         int userId,
         CreateWorkoutRequest request,
@@ -242,7 +258,70 @@ public sealed class WorkoutService : IWorkoutService
             workout.CreatedAt
         );
     }
+    private WorkoutDetailsDto ToDetailsDto(Workout workout)
+    {
+        var routePoints = workout.RoutePoints
+            .OrderBy(point => point.Order)
+            .Select(ToRoutePointDto)
+            .ToList();
 
+        var splits = workout.Splits
+            .OrderBy(split => split.SplitNumber)
+            .Select(ToSplitDto)
+            .ToList();
+
+        var plannedSession = workout.PlannedSession is null
+            ? null
+            : ToPlannedSessionDto(workout.PlannedSession);
+
+        var plannedVsActual = _plannedVsActualAnalyzer.Analyze(workout);
+
+        return new WorkoutDetailsDto(
+            ToDto(workout),
+            plannedSession,
+            plannedVsActual,
+            routePoints,
+            splits);
+    }
+
+    private static WorkoutRoutePointDto ToRoutePointDto(WorkoutRoutePoint point)
+    {
+        return new WorkoutRoutePointDto(
+            point.Id,
+            point.Order,
+            point.Latitude,
+            point.Longitude,
+            point.ElevationMeters,
+            point.RecordedAt,
+            point.DistanceFromStartMeters,
+            point.SecondsFromStart,
+            point.PaceSecondsPerKm);
+    }
+
+    private static WorkoutSplitDto ToSplitDto(WorkoutSplit split)
+    {
+        return new WorkoutSplitDto(
+            split.Id,
+            split.SplitNumber,
+            split.DistanceKm,
+            split.DurationSeconds,
+            split.AveragePaceSecondsPerKm,
+            split.StartedAt,
+            split.EndedAt);
+    }
+
+    private static WorkoutPlannedSessionDto ToPlannedSessionDto(PlannedSession plannedSession)
+    {
+        return new WorkoutPlannedSessionDto(
+            plannedSession.Id,
+            plannedSession.Type,
+            plannedSession.Intensity,
+            plannedSession.TargetDurationSeconds,
+            plannedSession.TargetDistanceKm,
+            plannedSession.TargetPaceSecondsPerKm,
+            plannedSession.ScheduledFor,
+            plannedSession.Status);
+    }
     private static int CalculateAveragePaceSecondsPerKm(Workout workout)
     {
         if (workout.DistanceKm <= 0)

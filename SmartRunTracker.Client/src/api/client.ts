@@ -24,12 +24,28 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
+  const body = options.body;
+
+  let requestBody: BodyInit | null | undefined;
+  let headers: HeadersInit | undefined;
+
+  if (body === undefined || body === null) {
+    requestBody = undefined;
+    headers = undefined;
+  } else if (body instanceof FormData) {
+    requestBody = body;
+    headers = undefined;
+  } else {
+    requestBody = JSON.stringify(body);
+    headers = {
+      "Content-Type": "application/json",
+    };
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    headers,
+    body: requestBody,
   });
 
   if (!response.ok) {

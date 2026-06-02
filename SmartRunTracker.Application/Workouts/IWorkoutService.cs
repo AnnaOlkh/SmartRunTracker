@@ -10,6 +10,10 @@ public interface IWorkoutService
         int userId,
         int workoutId,
         CancellationToken cancellationToken = default);
+    Task<WorkoutDetailsDto?> GetDetailsAsync(
+        int userId,
+        int workoutId,
+        CancellationToken cancellationToken = default);
 
     Task<WorkoutDto> CreateAsync(
         int userId,

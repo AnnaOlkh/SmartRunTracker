@@ -7,11 +7,14 @@ import type {
   WorkoutType,
 } from "../api/types";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { WorkoutDetailsPanel } from "../components/WorkoutDetailsPanel";
 import { useActiveRunningGoal } from "../hooks/useRunningGoals";
 import { useTrainingWeeks } from "../hooks/useTrainingWeeks";
 import {
   useCreateWorkout,
   useDeleteWorkout,
+  useImportGpxWorkout,
+  useWorkoutDetails,
   useWorkouts,
 } from "../hooks/useWorkouts";
 import {
@@ -29,8 +32,12 @@ export function WorkoutsPage() {
   const trainingWeeks = useTrainingWeeks();
   const activeGoal = useActiveRunningGoal();
 
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState<number | null>(null);
+
   const createWorkout = useCreateWorkout();
   const deleteWorkout = useDeleteWorkout();
+  const importGpxWorkout = useImportGpxWorkout();
+  const workoutDetails = useWorkoutDetails(selectedWorkoutId);
 
   const [startedAt, setStartedAt] = useState(toDateTimeLocalValue());
   const [distanceKm, setDistanceKm] = useState("5");
@@ -41,6 +48,14 @@ export function WorkoutsPage() {
   const [type, setType] = useState<WorkoutType>("Easy");
   const [plannedSessionId, setPlannedSessionId] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [gpxFile, setGpxFile] = useState<File | null>(null);
+  const [gpxInputKey, setGpxInputKey] = useState(0);
+  const [importPlannedSessionId, setImportPlannedSessionId] = useState("");
+  const [importRpe, setImportRpe] = useState("5");
+  const [importType, setImportType] = useState<WorkoutType>("Easy");
+  const [importNotes, setImportNotes] = useState("");
+
   const [workoutIdPendingDelete, setWorkoutIdPendingDelete] = useState<
     number | null
   >(null);
@@ -52,6 +67,10 @@ export function WorkoutsPage() {
     );
   }, [trainingWeeks.data, startedAt]);
 
+  const importablePlannedSessions = useMemo(() => {
+    return getImportablePlannedSessions(trainingWeeks.data ?? []);
+  }, [trainingWeeks.data]);
+
   const formValidationError = getWorkoutFormValidationError({
     startedAt,
     distanceKm,
@@ -59,6 +78,11 @@ export function WorkoutsPage() {
     minutes,
     seconds,
     rpe,
+  });
+
+  const gpxImportValidationError = getGpxImportValidationError({
+    file: gpxFile,
+    rpe: importRpe,
   });
 
   const goalAchievementMessage =
@@ -125,6 +149,63 @@ export function WorkoutsPage() {
     });
   }
 
+  function handleGpxFileChange(file: File | null) {
+    setGpxFile(file);
+  }
+
+  function handleImportPlannedSessionChange(value: string) {
+    setImportPlannedSessionId(value);
+
+    if (value === "") {
+      return;
+    }
+
+    const selectedSession = importablePlannedSessions.find(
+      (session) => session.id === Number(value),
+    );
+
+    if (!selectedSession) {
+      return;
+    }
+
+    setImportType(selectedSession.type);
+
+    setImportNotes(
+      selectedSession.notes
+        ? `Imported GPX for planned session: ${selectedSession.notes}`
+        : "Imported GPX for planned session.",
+    );
+  }
+
+  function handleImportGpx() {
+    if (gpxImportValidationError !== null || gpxFile === null) {
+      return;
+    }
+
+    importGpxWorkout.mutate(
+      {
+        file: gpxFile,
+        plannedSessionId:
+          importPlannedSessionId.trim() === ""
+            ? null
+            : Number(importPlannedSessionId),
+        workoutType: importType,
+        rpe: Number(importRpe),
+        notes: importNotes.trim() === "" ? null : importNotes.trim(),
+      },
+      {
+        onSuccess: () => {
+          setGpxFile(null);
+          setGpxInputKey((value) => value + 1);
+          setImportPlannedSessionId("");
+          setImportRpe("5");
+          setImportType("Easy");
+          setImportNotes("");
+        },
+      },
+    );
+  }
+
   function confirmDeleteWorkout() {
     if (workoutIdPendingDelete === null) {
       return;
@@ -164,7 +245,9 @@ export function WorkoutsPage() {
             <span>Link to planned session, optional</span>
             <select
               value={plannedSessionId}
-              onChange={(event) => handlePlannedSessionChange(event.target.value)}
+              onChange={(event) =>
+                handlePlannedSessionChange(event.target.value)
+              }
             >
               <option value="">Do not link</option>
 
@@ -280,6 +363,107 @@ export function WorkoutsPage() {
       </section>
 
       <section className="card">
+        <h3>Import GPX</h3>
+        <p className="muted">
+          Upload a GPX file to create a workout from GPS route data.
+        </p>
+
+        <div className="form-grid">
+          <label className="field">
+            <span>GPX file</span>
+            <input
+              key={gpxInputKey}
+              type="file"
+              accept=".gpx,application/gpx+xml,application/xml,text/xml"
+              onChange={(event) =>
+                handleGpxFileChange(event.target.files?.[0] ?? null)
+              }
+            />
+          </label>
+
+          <label className="field">
+            <span>Link to planned session, optional</span>
+            <select
+              value={importPlannedSessionId}
+              onChange={(event) =>
+                handleImportPlannedSessionChange(event.target.value)
+              }
+            >
+              <option value="">Do not link</option>
+
+              {importablePlannedSessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {formatPlannedSessionOption(session)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>RPE</span>
+            <input
+              type="number"
+              min="1"
+              max="10"
+              value={importRpe}
+              onChange={(event) => setImportRpe(event.target.value)}
+            />
+          </label>
+
+          <label className="field">
+            <span>Type</span>
+            <select
+              value={importType}
+              onChange={(event) =>
+                setImportType(event.target.value as WorkoutType)
+              }
+            >
+              {workoutTypes.map((workoutType) => (
+                <option key={workoutType} value={workoutType}>
+                  {workoutType}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <label className="field" style={{ marginTop: 14 }}>
+          <span>Notes</span>
+          <textarea
+            value={importNotes}
+            onChange={(event) => setImportNotes(event.target.value)}
+          />
+        </label>
+
+        {gpxImportValidationError && (
+          <p className="error">{gpxImportValidationError}</p>
+        )}
+
+        <div className="actions">
+          <button
+            type="button"
+            onClick={handleImportGpx}
+            disabled={
+              importGpxWorkout.isPending || gpxImportValidationError !== null
+            }
+          >
+            {importGpxWorkout.isPending ? "Importing..." : "Import GPX"}
+          </button>
+        </div>
+
+        {importGpxWorkout.error && (
+          <p className="error">{importGpxWorkout.error.message}</p>
+        )}
+
+        {importGpxWorkout.data && (
+          <p className="success">
+            GPX workout imported. Workout #{importGpxWorkout.data.id} is now
+            available in the workout history.
+          </p>
+        )}
+      </section>
+
+      <section className="card">
         <h3>Workout history</h3>
 
         {workouts.isLoading && <p className="muted">Loading workouts...</p>}
@@ -300,14 +484,24 @@ export function WorkoutsPage() {
                     <p className="muted">{formatDateTime(workout.startedAt)}</p>
                   </div>
 
-                  <button
-                    type="button"
-                    className="danger-button"
-                    onClick={() => setWorkoutIdPendingDelete(workout.id)}
-                    disabled={deleteWorkout.isPending}
-                  >
-                    Delete
-                  </button>
+                  <div className="actions-inline">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => setSelectedWorkoutId(workout.id)}
+                    >
+                      View details
+                    </button>
+
+                    <button
+                      type="button"
+                      className="danger-button"
+                      onClick={() => setWorkoutIdPendingDelete(workout.id)}
+                      disabled={deleteWorkout.isPending}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
 
                 <p>
@@ -317,7 +511,8 @@ export function WorkoutsPage() {
                 </p>
 
                 <p className="muted">
-                  RPE: {workout.rpe} · Load: {workout.sessionLoad}
+                  Source: {workout.source} · RPE: {workout.rpe} · Load:{" "}
+                  {workout.sessionLoad}
                   {workout.plannedSessionId
                     ? " · Linked planned session"
                     : ""}
@@ -329,7 +524,37 @@ export function WorkoutsPage() {
           </div>
         </div>
       </section>
+      {selectedWorkoutId !== null && (
+        <>
+          {workoutDetails.isLoading && (
+            <section className="card">
+              <h3>Workout details</h3>
+              <p className="muted">Loading workout details...</p>
+            </section>
+          )}
 
+          {workoutDetails.error && (
+            <section className="card">
+              <h3>Workout details</h3>
+              <p className="error">{workoutDetails.error.message}</p>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setSelectedWorkoutId(null)}
+              >
+                Close
+              </button>
+            </section>
+          )}
+
+          {workoutDetails.data && (
+            <WorkoutDetailsPanel
+              details={workoutDetails.data}
+              onClose={() => setSelectedWorkoutId(null)}
+            />
+          )}
+        </>
+      )}
       {workoutIdPendingDelete !== null && (
         <ConfirmDialog
           title="Delete workout"
@@ -348,6 +573,11 @@ interface WorkoutFormValues {
   hours: string;
   minutes: string;
   seconds: string;
+  rpe: string;
+}
+
+interface GpxImportFormValues {
+  file: File | null;
   rpe: string;
 }
 
@@ -382,9 +612,33 @@ function getWorkoutFormValidationError(values: WorkoutFormValues): string | null
     return "Duration must be greater than zero.";
   }
 
-  const rpe = Number(values.rpe);
+  const rpeValue = Number(values.rpe);
 
-  if (rpe < 1 || rpe > 10) {
+  if (!Number.isFinite(rpeValue) || rpeValue < 1 || rpeValue > 10) {
+    return "RPE must be between 1 and 10.";
+  }
+
+  return null;
+}
+
+function getGpxImportValidationError(
+  values: GpxImportFormValues,
+): string | null {
+  if (values.file === null) {
+    return "GPX file is required.";
+  }
+
+  if (!values.file.name.toLowerCase().endsWith(".gpx")) {
+    return "Only .gpx files are supported.";
+  }
+
+  if (values.file.size <= 0) {
+    return "GPX file is empty.";
+  }
+
+  const rpeValue = Number(values.rpe);
+
+  if (!Number.isFinite(rpeValue) || rpeValue < 1 || rpeValue > 10) {
     return "RPE must be between 1 and 10.";
   }
 
@@ -413,25 +667,65 @@ function getPlannedSessionsForStartedAtWeek(
   }
 
   return matchingWeek.plannedSessions
-  .filter((session) => {
-    return (
-      session.status === "Unscheduled" ||
-      session.status === "Scheduled" ||
-      session.status === "Skipped"
-    );
-  })
-  .sort((a, b) => {
-    const statusOrder = getPlannedSessionStatusOrder(a.status)
-      - getPlannedSessionStatusOrder(b.status);
+    .filter(isImportablePlannedSession)
+    .sort((a, b) => {
+      const statusOrder =
+        getPlannedSessionStatusOrder(a.status) -
+        getPlannedSessionStatusOrder(b.status);
 
-    if (statusOrder !== 0) {
-      return statusOrder;
-    }
+      if (statusOrder !== 0) {
+        return statusOrder;
+      }
 
-    return a.sortOrder - b.sortOrder;
-  });
+      return a.sortOrder - b.sortOrder;
+    });
 }
-function getPlannedSessionStatusOrder(status: PlannedSessionDto["status"]): number {
+
+function getImportablePlannedSessions(
+  trainingWeeks: TrainingWeekDto[],
+): PlannedSessionDto[] {
+  return trainingWeeks
+    .flatMap((week) => week.plannedSessions)
+    .filter(isImportablePlannedSession)
+    .sort((a, b) => {
+      const statusOrder =
+        getPlannedSessionStatusOrder(a.status) -
+        getPlannedSessionStatusOrder(b.status);
+
+      if (statusOrder !== 0) {
+        return statusOrder;
+      }
+
+      if (a.scheduledFor && b.scheduledFor) {
+        return (
+          new Date(a.scheduledFor).getTime() -
+          new Date(b.scheduledFor).getTime()
+        );
+      }
+
+      if (a.scheduledFor) {
+        return -1;
+      }
+
+      if (b.scheduledFor) {
+        return 1;
+      }
+
+      return a.sortOrder - b.sortOrder;
+    });
+}
+
+function isImportablePlannedSession(session: PlannedSessionDto): boolean {
+  return (
+    session.status === "Unscheduled" ||
+    session.status === "Scheduled" ||
+    session.status === "Skipped"
+  );
+}
+
+function getPlannedSessionStatusOrder(
+  status: PlannedSessionDto["status"],
+): number {
   switch (status) {
     case "Scheduled":
       return 1;
@@ -449,6 +743,7 @@ function getPlannedSessionStatusOrder(status: PlannedSessionDto["status"]): numb
       return 5;
   }
 }
+
 function getMondayStart(date: Date): Date {
   const result = new Date(date);
   result.setHours(0, 0, 0, 0);

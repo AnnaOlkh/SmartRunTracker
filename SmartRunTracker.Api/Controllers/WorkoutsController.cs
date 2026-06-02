@@ -43,6 +43,23 @@ public sealed class WorkoutsController : ControllerBase
 
         return Ok(workout);
     }
+    [HttpGet("{id:int}/details")]
+    public async Task<ActionResult<WorkoutDetailsDto>> GetDetails(
+    int id,
+    CancellationToken cancellationToken)
+    {
+        var workout = await _workoutService.GetDetailsAsync(
+            DemoUser.Id,
+            id,
+            cancellationToken);
+
+        if (workout is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(workout);
+    }
 
     [HttpPost]
     public async Task<ActionResult<WorkoutDto>> Create(
