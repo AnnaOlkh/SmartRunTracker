@@ -10,15 +10,18 @@ public sealed class WorkoutService : IWorkoutService
     private readonly IWorkoutRepository _workoutRepository;
     private readonly ITrainingPlanRepository _trainingPlanRepository;
     private readonly IPlannedVsActualAnalyzer _plannedVsActualAnalyzer;
+    private readonly IWorkoutInsightBuilder _workoutInsightBuilder;
 
     public WorkoutService(
     IWorkoutRepository workoutRepository,
     ITrainingPlanRepository trainingPlanRepository,
-    IPlannedVsActualAnalyzer plannedVsActualAnalyzer)
+    IPlannedVsActualAnalyzer plannedVsActualAnalyzer,
+    IWorkoutInsightBuilder workoutInsightBuilder)
     {
         _workoutRepository = workoutRepository;
         _trainingPlanRepository = trainingPlanRepository;
         _plannedVsActualAnalyzer = plannedVsActualAnalyzer;
+        _workoutInsightBuilder = workoutInsightBuilder;
     }
 
     public async Task<IReadOnlyList<WorkoutDto>> GetAllAsync(
@@ -275,11 +278,13 @@ public sealed class WorkoutService : IWorkoutService
             : ToPlannedSessionDto(workout.PlannedSession);
 
         var plannedVsActual = _plannedVsActualAnalyzer.Analyze(workout);
+        var insights = _workoutInsightBuilder.Build(workout, plannedVsActual);
 
         return new WorkoutDetailsDto(
             ToDto(workout),
             plannedSession,
             plannedVsActual,
+            insights,
             routePoints,
             splits);
     }

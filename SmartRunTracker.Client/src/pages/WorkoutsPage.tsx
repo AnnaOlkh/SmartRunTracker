@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   PlannedSessionDto,
   RunningGoalDto,
@@ -22,22 +22,33 @@ import {
   formatDuration,
   formatPace,
   toDateTimeLocalValue,
-  toLocalDateKey,
 } from "../utils/format";
 
 const workoutTypes: WorkoutType[] = ["Easy", "Quality", "Long", "Recovery"];
+
+type NoticeKind = "success" | "error";
+
+interface Notice {
+  kind: NoticeKind;
+  message: string;
+}
 
 export function WorkoutsPage() {
   const workouts = useWorkouts();
   const trainingWeeks = useTrainingWeeks();
   const activeGoal = useActiveRunningGoal();
 
-  const [selectedWorkoutId, setSelectedWorkoutId] = useState<number | null>(null);
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState<number | null>(
+    null,
+  );
 
   const createWorkout = useCreateWorkout();
   const deleteWorkout = useDeleteWorkout();
   const importGpxWorkout = useImportGpxWorkout();
   const workoutDetails = useWorkoutDetails(selectedWorkoutId);
+
+  const [isAddWorkoutOpen, setIsAddWorkoutOpen] = useState(false);
+  const [isImportGpxOpen, setIsImportGpxOpen] = useState(false);
 
   const [startedAt, setStartedAt] = useState(toDateTimeLocalValue());
   const [distanceKm, setDistanceKm] = useState("5");
@@ -51,14 +62,42 @@ export function WorkoutsPage() {
 
   const [gpxFile, setGpxFile] = useState<File | null>(null);
   const [gpxInputKey, setGpxInputKey] = useState(0);
-  const [importPlannedSessionId, setImportPlannedSessionId] = useState("");
   const [importRpe, setImportRpe] = useState("5");
   const [importType, setImportType] = useState<WorkoutType>("Easy");
   const [importNotes, setImportNotes] = useState("");
 
+  const [hasTriedCreateSubmit, setHasTriedCreateSubmit] = useState(false);
+  const [hasTriedImportSubmit, setHasTriedImportSubmit] = useState(false);
+  const [createNotice, setCreateNotice] = useState<Notice | null>(null);
+  const [importNotice, setImportNotice] = useState<Notice | null>(null);
+
   const [workoutIdPendingDelete, setWorkoutIdPendingDelete] = useState<
     number | null
   >(null);
+
+  useEffect(() => {
+    if (createNotice === null) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCreateNotice(null);
+    }, 3500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [createNotice]);
+
+  useEffect(() => {
+    if (importNotice === null) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setImportNotice(null);
+    }, 4500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [importNotice]);
 
   const availablePlannedSessions = useMemo(() => {
     return getPlannedSessionsForStartedAtWeek(
@@ -67,9 +106,14 @@ export function WorkoutsPage() {
     );
   }, [trainingWeeks.data, startedAt]);
 
-  const importablePlannedSessions = useMemo(() => {
-    return getImportablePlannedSessions(trainingWeeks.data ?? []);
-  }, [trainingWeeks.data]);
+  const sortedWorkouts = useMemo(() => {
+    return (workouts.data ?? [])
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+      );
+  }, [workouts.data]);
 
   const formValidationError = getWorkoutFormValidationError({
     startedAt,
@@ -130,6 +174,8 @@ export function WorkoutsPage() {
   }
 
   function handleCreate() {
+    setHasTriedCreateSubmit(true);
+
     if (formValidationError !== null) {
       return;
     }
@@ -137,47 +183,44 @@ export function WorkoutsPage() {
     const durationSeconds =
       Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
 
-    createWorkout.mutate({
-      startedAt: new Date(startedAt).toISOString(),
-      distanceKm: Number(distanceKm),
-      durationSeconds,
-      rpe: Number(rpe),
-      type,
-      notes: notes.trim() === "" ? null : notes.trim(),
-      plannedSessionId:
-        plannedSessionId.trim() === "" ? null : Number(plannedSessionId),
-    });
+    createWorkout.mutate(
+      {
+        startedAt: new Date(startedAt).toISOString(),
+        distanceKm: Number(distanceKm),
+        durationSeconds,
+        rpe: Number(rpe),
+        type,
+        notes: notes.trim() === "" ? null : notes.trim(),
+        plannedSessionId:
+          plannedSessionId.trim() === "" ? null : Number(plannedSessionId),
+      },
+      {
+        onSuccess: (createdWorkout) => {
+          setCreateNotice({
+            kind: "success",
+            message: "Workout saved.",
+          });
+          setHasTriedCreateSubmit(false);
+          setSelectedWorkoutId(createdWorkout.id);
+        },
+        onError: (error) => {
+          setCreateNotice({
+            kind: "error",
+            message: getErrorMessage(error),
+          });
+        },
+      },
+    );
   }
 
   function handleGpxFileChange(file: File | null) {
     setGpxFile(file);
   }
 
-  function handleImportPlannedSessionChange(value: string) {
-    setImportPlannedSessionId(value);
-
-    if (value === "") {
-      return;
-    }
-
-    const selectedSession = importablePlannedSessions.find(
-      (session) => session.id === Number(value),
-    );
-
-    if (!selectedSession) {
-      return;
-    }
-
-    setImportType(selectedSession.type);
-
-    setImportNotes(
-      selectedSession.notes
-        ? `Imported GPX for planned session: ${selectedSession.notes}`
-        : "Imported GPX for planned session.",
-    );
-  }
 
   function handleImportGpx() {
+    setHasTriedImportSubmit(true);
+
     if (gpxImportValidationError !== null || gpxFile === null) {
       return;
     }
@@ -185,22 +228,32 @@ export function WorkoutsPage() {
     importGpxWorkout.mutate(
       {
         file: gpxFile,
-        plannedSessionId:
-          importPlannedSessionId.trim() === ""
-            ? null
-            : Number(importPlannedSessionId),
+        plannedSessionId: null,
         workoutType: importType,
         rpe: Number(importRpe),
         notes: importNotes.trim() === "" ? null : importNotes.trim(),
       },
       {
-        onSuccess: () => {
+        onSuccess: (createdWorkout) => {
           setGpxFile(null);
           setGpxInputKey((value) => value + 1);
-          setImportPlannedSessionId("");
           setImportRpe("5");
           setImportType("Easy");
           setImportNotes("");
+          setHasTriedImportSubmit(false);
+
+          setImportNotice({
+            kind: "success",
+            message: "GPX workout imported.",
+          });
+
+          setSelectedWorkoutId(createdWorkout.id);
+        },
+        onError: (error) => {
+          setImportNotice({
+            kind: "error",
+            message: getErrorMessage(error),
+          });
         },
       },
     );
@@ -213,6 +266,10 @@ export function WorkoutsPage() {
 
     deleteWorkout.mutate(workoutIdPendingDelete, {
       onSuccess: () => {
+        if (selectedWorkoutId === workoutIdPendingDelete) {
+          setSelectedWorkoutId(null);
+        }
+
         setWorkoutIdPendingDelete(null);
       },
     });
@@ -223,243 +280,249 @@ export function WorkoutsPage() {
       <div className="page-header">
         <div>
           <h2>Workouts</h2>
-          <p>Add completed runs and link them to planned sessions.</p>
+          <p>Add completed runs, import GPX files, and review workout details.</p>
         </div>
       </div>
 
-      <section className="card">
-        <h3>Add workout</h3>
+      <section className="card collapsible-card">
+      <button
+        type="button"
+        className="collapsible-header"
+        onClick={() => setIsAddWorkoutOpen((value) => !value)}
+      >
+        <span>Add workout</span>
+        <span className="collapsible-indicator">
+          {isAddWorkoutOpen ? "−" : "+"}
+        </span>
+      </button>
 
-        <div className="form-grid">
-          <label className="field">
-            <span>Started at</span>
-            <input
-              type="datetime-local"
-              max={toDateTimeLocalValue()}
-              value={startedAt}
-              onChange={(event) => handleStartedAtChange(event.target.value)}
-            />
-          </label>
+        {isAddWorkoutOpen && (
+          <div className="collapsible-content">
+            <div className="form-grid">
+              <label className="field">
+                <span>Started at</span>
+                <input
+                  type="datetime-local"
+                  max={toDateTimeLocalValue()}
+                  value={startedAt}
+                  onChange={(event) =>
+                    handleStartedAtChange(event.target.value)
+                  }
+                />
+              </label>
 
-          <label className="field">
-            <span>Link to planned session, optional</span>
-            <select
-              value={plannedSessionId}
-              onChange={(event) =>
-                handlePlannedSessionChange(event.target.value)
-              }
-            >
-              <option value="">Do not link</option>
+              <label className="field">
+                <span>Link to planned session, optional</span>
+                <select
+                  value={plannedSessionId}
+                  onChange={(event) =>
+                    handlePlannedSessionChange(event.target.value)
+                  }
+                >
+                  <option value="">Do not link</option>
 
-              {availablePlannedSessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {formatPlannedSessionOption(session)}
-                </option>
-              ))}
-            </select>
-          </label>
+                  {availablePlannedSessions.map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {formatPlannedSessionOption(session)}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          <label className="field">
-            <span>Distance, km</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={distanceKm}
-              onChange={(event) => setDistanceKm(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>Distance, km</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={distanceKm}
+                  onChange={(event) => setDistanceKm(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>Hours</span>
-            <input
-              type="number"
-              min="0"
-              value={hours}
-              onChange={(event) => setHours(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>Hours</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={hours}
+                  onChange={(event) => setHours(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>Minutes</span>
-            <input
-              type="number"
-              min="0"
-              max="59"
-              value={minutes}
-              onChange={(event) => setMinutes(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>Minutes</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={minutes}
+                  onChange={(event) => setMinutes(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>Seconds</span>
-            <input
-              type="number"
-              min="0"
-              max="59"
-              value={seconds}
-              onChange={(event) => setSeconds(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>Seconds</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={seconds}
+                  onChange={(event) => setSeconds(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>RPE</span>
-            <input
-              type="number"
-              min="1"
-              max="10"
-              value={rpe}
-              onChange={(event) => setRpe(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>RPE</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={rpe}
+                  onChange={(event) => setRpe(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>Type</span>
-            <select
-              value={type}
-              onChange={(event) => setType(event.target.value as WorkoutType)}
-            >
-              {workoutTypes.map((workoutType) => (
-                <option key={workoutType} value={workoutType}>
-                  {workoutType}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+              <label className="field">
+                <span>Type</span>
+                <select
+                  value={type}
+                  onChange={(event) =>
+                    setType(event.target.value as WorkoutType)
+                  }
+                >
+                  {workoutTypes.map((workoutType) => (
+                    <option key={workoutType} value={workoutType}>
+                      {workoutType}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-        <label className="field" style={{ marginTop: 14 }}>
-          <span>Notes</span>
-          <textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-          />
-        </label>
+            <label className="field" style={{ marginTop: 14 }}>
+              <span>Notes</span>
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+              />
+            </label>
 
-        {formValidationError && <p className="error">{formValidationError}</p>}
+            {hasTriedCreateSubmit && formValidationError && (
+              <NoticeBlock kind="error" message={formValidationError} />
+            )}
 
-        <div className="actions">
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={createWorkout.isPending || formValidationError !== null}
-          >
-            {createWorkout.isPending ? "Saving..." : "Add workout"}
-          </button>
-        </div>
+            <div className="actions">
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={createWorkout.isPending}
+              >
+                {createWorkout.isPending ? "Saving..." : "Add workout"}
+              </button>
+            </div>
 
-        {createWorkout.error && (
-          <p className="error">{createWorkout.error.message}</p>
-        )}
+            {createNotice && (
+              <NoticeBlock
+                kind={createNotice.kind}
+                message={createNotice.message}
+              />
+            )}
 
-        {createWorkout.data && <p className="success">Workout saved.</p>}
-
-        {goalAchievementMessage && (
-          <div className="goal-notification">
-            <strong>Goal matched.</strong>
-            <p>{goalAchievementMessage}</p>
+            {goalAchievementMessage && (
+              <div className="goal-notification">
+                <strong>Goal matched.</strong>
+                <p>{goalAchievementMessage}</p>
+              </div>
+            )}
           </div>
         )}
       </section>
 
-      <section className="card">
-        <h3>Import GPX</h3>
-        <p className="muted">
-          Upload a GPX file to create a workout from GPS route data.
-        </p>
+      <section className="card collapsible-card">
+      <button
+        type="button"
+        className="collapsible-header"
+        onClick={() => setIsImportGpxOpen((value) => !value)}
+      >
+        <span>Import GPX</span>
+        <span className="collapsible-indicator">
+          {isImportGpxOpen ? "−" : "+"}
+        </span>
+      </button>
 
-        <div className="form-grid">
-          <label className="field">
-            <span>GPX file</span>
-            <input
-              key={gpxInputKey}
-              type="file"
-              accept=".gpx,application/gpx+xml,application/xml,text/xml"
-              onChange={(event) =>
-                handleGpxFileChange(event.target.files?.[0] ?? null)
-              }
-            />
-          </label>
+        {isImportGpxOpen && (
+          <div className="collapsible-content">
+            <div className="form-grid">
+              <label className="field">
+                <span>GPX file</span>
+                <input
+                  key={gpxInputKey}
+                  type="file"
+                  accept=".gpx,application/gpx+xml,application/xml,text/xml"
+                  onChange={(event) =>
+                    handleGpxFileChange(event.target.files?.[0] ?? null)
+                  }
+                />
+              </label>
 
-          <label className="field">
-            <span>Link to planned session, optional</span>
-            <select
-              value={importPlannedSessionId}
-              onChange={(event) =>
-                handleImportPlannedSessionChange(event.target.value)
-              }
-            >
-              <option value="">Do not link</option>
+              <label className="field">
+                <span>RPE</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={importRpe}
+                  onChange={(event) => setImportRpe(event.target.value)}
+                />
+              </label>
 
-              {importablePlannedSessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {formatPlannedSessionOption(session)}
-                </option>
-              ))}
-            </select>
-          </label>
+              <label className="field">
+                <span>Type</span>
+                <select
+                  value={importType}
+                  onChange={(event) =>
+                    setImportType(event.target.value as WorkoutType)
+                  }
+                >
+                  {workoutTypes.map((workoutType) => (
+                    <option key={workoutType} value={workoutType}>
+                      {workoutType}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-          <label className="field">
-            <span>RPE</span>
-            <input
-              type="number"
-              min="1"
-              max="10"
-              value={importRpe}
-              onChange={(event) => setImportRpe(event.target.value)}
-            />
-          </label>
+            <label className="field" style={{ marginTop: 14 }}>
+              <span>Notes</span>
+              <textarea
+                value={importNotes}
+                onChange={(event) => setImportNotes(event.target.value)}
+              />
+            </label>
 
-          <label className="field">
-            <span>Type</span>
-            <select
-              value={importType}
-              onChange={(event) =>
-                setImportType(event.target.value as WorkoutType)
-              }
-            >
-              {workoutTypes.map((workoutType) => (
-                <option key={workoutType} value={workoutType}>
-                  {workoutType}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+            {hasTriedImportSubmit && gpxImportValidationError && (
+              <NoticeBlock kind="error" message={gpxImportValidationError} />
+            )}
 
-        <label className="field" style={{ marginTop: 14 }}>
-          <span>Notes</span>
-          <textarea
-            value={importNotes}
-            onChange={(event) => setImportNotes(event.target.value)}
-          />
-        </label>
+            <div className="actions">
+              <button
+                type="button"
+                onClick={handleImportGpx}
+                disabled={importGpxWorkout.isPending}
+              >
+                {importGpxWorkout.isPending ? "Importing..." : "Import GPX"}
+              </button>
+            </div>
 
-        {gpxImportValidationError && (
-          <p className="error">{gpxImportValidationError}</p>
-        )}
-
-        <div className="actions">
-          <button
-            type="button"
-            onClick={handleImportGpx}
-            disabled={
-              importGpxWorkout.isPending || gpxImportValidationError !== null
-            }
-          >
-            {importGpxWorkout.isPending ? "Importing..." : "Import GPX"}
-          </button>
-        </div>
-
-        {importGpxWorkout.error && (
-          <p className="error">{importGpxWorkout.error.message}</p>
-        )}
-
-        {importGpxWorkout.data && (
-          <p className="success">
-            GPX workout imported. Workout #{importGpxWorkout.data.id} is now
-            available in the workout history.
-          </p>
+            {importNotice && (
+              <NoticeBlock
+                kind={importNotice.kind}
+                message={importNotice.message}
+              />
+            )}
+          </div>
         )}
       </section>
 
@@ -470,91 +533,102 @@ export function WorkoutsPage() {
 
         {workouts.error && <p className="error">{workouts.error.message}</p>}
 
-        {workouts.data?.length === 0 && (
+        {!workouts.isLoading && sortedWorkouts.length === 0 && (
           <p className="muted">No workouts yet.</p>
         )}
 
         <div className="scroll-panel">
           <div className="list">
-            {workouts.data?.map((workout) => (
-              <article key={workout.id} className="list-item">
-                <div className="list-item-header">
+            {sortedWorkouts.map((workout) => (
+              <article key={workout.id} className="workout-history-item">
+                <div className="workout-history-main">
                   <div>
-                    <h4>{workout.type}</h4>
-                    <p className="muted">{formatDateTime(workout.startedAt)}</p>
+                    <h4>
+                      {workout.type}
+                      <span className={getSourceBadgeClassName(workout.source)}>
+                        {workout.source}
+                      </span>
+                    </h4>
+
+                    <p className="muted">
+                      {formatDateTime(workout.startedAt)}
+                      {workout.plannedSessionId
+                        ? " · Linked planned session"
+                        : ""}
+                    </p>
                   </div>
 
-                  <div className="actions-inline">
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => setSelectedWorkoutId(workout.id)}
-                    >
-                      View details
-                    </button>
-
-                    <button
-                      type="button"
-                      className="danger-button"
-                      onClick={() => setWorkoutIdPendingDelete(workout.id)}
-                      disabled={deleteWorkout.isPending}
-                    >
-                      Delete
-                    </button>
+                  <div className="workout-history-metrics">
+                    <span>{workout.distanceKm} km</span>
+                    <span>{formatDuration(workout.durationSeconds)}</span>
+                    <span>{formatPace(workout.averagePaceSecondsPerKm)}</span>
+                    <span>RPE {workout.rpe}</span>
                   </div>
                 </div>
 
-                <p>
-                  {workout.distanceKm} km ·{" "}
-                  {formatDuration(workout.durationSeconds)} ·{" "}
-                  {formatPace(workout.averagePaceSecondsPerKm)}
-                </p>
+                {workout.notes && <p className="muted">{workout.notes}</p>}
 
-                <p className="muted">
-                  Source: {workout.source} · RPE: {workout.rpe} · Load:{" "}
-                  {workout.sessionLoad}
-                  {workout.plannedSessionId
-                    ? " · Linked planned session"
-                    : ""}
-                </p>
+                <div className="actions-inline">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setSelectedWorkoutId(workout.id)}
+                  >
+                    Details
+                  </button>
 
-                {workout.notes && <p>{workout.notes}</p>}
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={() => setWorkoutIdPendingDelete(workout.id)}
+                    disabled={deleteWorkout.isPending}
+                  >
+                    Delete
+                  </button>
+                </div>
               </article>
             ))}
           </div>
         </div>
       </section>
+
       {selectedWorkoutId !== null && (
-        <>
-          {workoutDetails.isLoading && (
-            <section className="card">
-              <h3>Workout details</h3>
-              <p className="muted">Loading workout details...</p>
-            </section>
-          )}
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-panel modal-panel-large">
+            {workoutDetails.isLoading && (
+              <section className="card modal-card">
+                <h3>Workout details</h3>
+                <p className="muted">Loading workout details...</p>
+              </section>
+            )}
 
-          {workoutDetails.error && (
-            <section className="card">
-              <h3>Workout details</h3>
-              <p className="error">{workoutDetails.error.message}</p>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setSelectedWorkoutId(null)}
-              >
-                Close
-              </button>
-            </section>
-          )}
+            {workoutDetails.error && (
+              <section className="card modal-card">
+                <h3>Workout details</h3>
+                <NoticeBlock
+                  kind="error"
+                  message={workoutDetails.error.message}
+                />
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setSelectedWorkoutId(null)}
+                >
+                  Close
+                </button>
+              </section>
+            )}
 
-          {workoutDetails.data && (
-            <WorkoutDetailsPanel
-              details={workoutDetails.data}
-              onClose={() => setSelectedWorkoutId(null)}
-            />
-          )}
-        </>
+            {workoutDetails.data && (
+              <WorkoutDetailsPanel
+                details={workoutDetails.data}
+                onClose={() => setSelectedWorkoutId(null)}
+              />
+            )}
+          </div>
+        </div>
       )}
+
       {workoutIdPendingDelete !== null && (
         <ConfirmDialog
           title="Delete workout"
@@ -563,6 +637,19 @@ export function WorkoutsPage() {
           onCancel={() => setWorkoutIdPendingDelete(null)}
         />
       )}
+    </div>
+  );
+}
+
+interface NoticeBlockProps {
+  kind: NoticeKind;
+  message: string;
+}
+
+function NoticeBlock({ kind, message }: NoticeBlockProps) {
+  return (
+    <div className={`notice-block notice-block-${kind}`}>
+      <p>{message}</p>
     </div>
   );
 }
@@ -655,11 +742,12 @@ function getPlannedSessionsForStartedAtWeek(
     return [];
   }
 
-  const weekStart = getMondayStart(selectedDate);
-  const weekStartKey = toLocalDateKey(weekStart);
-
   const matchingWeek = trainingWeeks.find((week) => {
-    return week.weekStartDate === weekStartKey;
+    const weekStart = parseLocalDate(week.weekStartDate);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    return selectedDate >= weekStart && selectedDate < weekEnd;
   });
 
   if (!matchingWeek) {
@@ -681,38 +769,9 @@ function getPlannedSessionsForStartedAtWeek(
     });
 }
 
-function getImportablePlannedSessions(
-  trainingWeeks: TrainingWeekDto[],
-): PlannedSessionDto[] {
-  return trainingWeeks
-    .flatMap((week) => week.plannedSessions)
-    .filter(isImportablePlannedSession)
-    .sort((a, b) => {
-      const statusOrder =
-        getPlannedSessionStatusOrder(a.status) -
-        getPlannedSessionStatusOrder(b.status);
-
-      if (statusOrder !== 0) {
-        return statusOrder;
-      }
-
-      if (a.scheduledFor && b.scheduledFor) {
-        return (
-          new Date(a.scheduledFor).getTime() -
-          new Date(b.scheduledFor).getTime()
-        );
-      }
-
-      if (a.scheduledFor) {
-        return -1;
-      }
-
-      if (b.scheduledFor) {
-        return 1;
-      }
-
-      return a.sortOrder - b.sortOrder;
-    });
+function parseLocalDate(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
 }
 
 function isImportablePlannedSession(session: PlannedSessionDto): boolean {
@@ -744,16 +803,6 @@ function getPlannedSessionStatusOrder(
   }
 }
 
-function getMondayStart(date: Date): Date {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-
-  const mondayBasedDayIndex = (result.getDay() + 6) % 7;
-  result.setDate(result.getDate() - mondayBasedDayIndex);
-
-  return result;
-}
-
 function formatPlannedSessionOption(session: PlannedSessionDto): string {
   const scheduledLabel = session.scheduledFor
     ? formatDateTime(session.scheduledFor)
@@ -762,6 +811,10 @@ function formatPlannedSessionOption(session: PlannedSessionDto): string {
   return `${session.status} · ${scheduledLabel} · ${session.type} · ${formatDuration(
     session.targetDurationSeconds,
   )} · ${session.targetDistanceKm ?? "-"} km`;
+}
+
+function getSourceBadgeClassName(source: WorkoutDto["source"]): string {
+  return `source-badge source-badge-${String(source).toLowerCase()}`;
 }
 
 function getGoalAchievementMessage(
@@ -783,4 +836,12 @@ function getGoalAchievementMessage(
   }
 
   return null;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Request failed.";
 }

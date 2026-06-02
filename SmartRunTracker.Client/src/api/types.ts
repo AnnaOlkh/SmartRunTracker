@@ -121,6 +121,14 @@ export interface PlannedVsActualDto {
   intensity: PlannedVsActualIntensityDto;
 }
 
+export type WorkoutInsightSeverity = "Info" | "Positive" | "Warning";
+
+export interface WorkoutInsightDto {
+  title: string;
+  message: string;
+  severity: WorkoutInsightSeverity;
+}
+
 export interface WorkoutDetailsDto {
   summary: WorkoutDto;
   plannedSession: WorkoutPlannedSessionDto | null;
@@ -129,6 +137,7 @@ export interface WorkoutDetailsDto {
   splits: WorkoutSplitDto[];
   hasRouteData: boolean;
   hasSplits: boolean;
+  insights: WorkoutInsightDto[];
 }
 
 export interface ImportGpxWorkoutRequest {

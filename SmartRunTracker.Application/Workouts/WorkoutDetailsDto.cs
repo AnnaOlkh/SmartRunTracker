@@ -6,6 +6,7 @@ public sealed record WorkoutDetailsDto(
     WorkoutDto Summary,
     WorkoutPlannedSessionDto? PlannedSession,
     PlannedVsActualDto? PlannedVsActual,
+    IReadOnlyList<WorkoutInsightDto> Insights,
     IReadOnlyList<WorkoutRoutePointDto> RoutePoints,
     IReadOnlyList<WorkoutSplitDto> Splits)
 {

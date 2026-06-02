@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
-import type { PlannedSessionDto, TrainingWeekDto } from "../api/types";
+import type {
+  PlannedSessionDto,
+  TrainingWeekDto,
+  WorkoutDto,
+} from "../api/types";
 import {
   useSchedulePlannedSession,
   useSkipPlannedSession,
@@ -8,6 +12,7 @@ import {
   useGenerateTrainingWeek,
   useTrainingWeeks,
 } from "../hooks/useTrainingWeeks";
+import { useWorkouts } from "../hooks/useWorkouts";
 import {
   formatDate,
   formatDateTime,
@@ -24,6 +29,7 @@ export function TrainingPlanPage() {
   const [selectedWeekId, setSelectedWeekId] = useState<number | null>(null);
 
   const trainingWeeks = useTrainingWeeks();
+  const workouts = useWorkouts();
   const generateTrainingWeek = useGenerateTrainingWeek();
 
   const weeks = trainingWeeks.data ?? [];
@@ -83,7 +89,7 @@ export function TrainingPlanPage() {
           and active goal.
         </p>
 
-        <div className="form-row">
+        <div className="form-grid">
           <label className="field">
             <span>Week start date</span>
             <input
@@ -92,7 +98,9 @@ export function TrainingPlanPage() {
               onChange={(event) => setWeekStartDate(event.target.value)}
             />
           </label>
+        </div>
 
+        <div className="actions">
           <button
             type="button"
             onClick={handleGenerate}
@@ -103,47 +111,31 @@ export function TrainingPlanPage() {
         </div>
 
         {generateTrainingWeek.data && (
-          <div className="result-box">
+          <div className="notice-block notice-block-success">
             <p>
               Generated week:{" "}
-              <strong>
-                {formatDate(generateTrainingWeek.data.weekStartDate)}
-              </strong>
+              {formatDate(generateTrainingWeek.data.weekStartDate)} · Mode:{" "}
+              {generateTrainingWeek.data.adjustmentMode} · Sessions:{" "}
+              {generateTrainingWeek.data.targetWorkoutCount} · Total duration:{" "}
+              {formatDuration(
+                generateTrainingWeek.data.targetWeekDurationSeconds,
+              )}
             </p>
-            <p>
-              Mode: <strong>{generateTrainingWeek.data.adjustmentMode}</strong>
-            </p>
-            <p>
-              Sessions:{" "}
-              <strong>{generateTrainingWeek.data.targetWorkoutCount}</strong>
-            </p>
-            <p>
-              Total duration:{" "}
-              <strong>
-                {formatDuration(
-                  generateTrainingWeek.data.targetWeekDurationSeconds,
-                )}
-              </strong>
-            </p>
-            <p className="muted">{generateTrainingWeek.data.explanation}</p>
           </div>
         )}
 
         {generateTrainingWeek.error && (
-          <p className="error">{generateTrainingWeek.error.message}</p>
+          <div className="notice-block notice-block-error">
+            <p>{generateTrainingWeek.error.message}</p>
+          </div>
         )}
       </section>
 
-      <TrainingCalendar
-        weeks={weeks}
-        calendarMonth={calendarMonth}
-        onCalendarMonthChange={setCalendarMonth}
-      />
-
       <section className="card">
+        <h3>Generated week</h3>
+
         <div className="week-pager">
           <div>
-            <h3>Generated week</h3>
             <p className="muted">
               Select a generated week instead of rendering all weeks as one long
               list.
@@ -162,7 +154,9 @@ export function TrainingPlanPage() {
 
             <select
               value={selectedWeek?.id ?? ""}
-              onChange={(event) => setSelectedWeekId(Number(event.target.value))}
+              onChange={(event) =>
+                setSelectedWeekId(Number(event.target.value))
+              }
               disabled={weeks.length === 0}
             >
               {weeks.map((week) => (
@@ -190,13 +184,24 @@ export function TrainingPlanPage() {
         )}
 
         {trainingWeeks.error && (
-          <p className="error">{trainingWeeks.error.message}</p>
+          <div className="notice-block notice-block-error">
+            <p>{trainingWeeks.error.message}</p>
+          </div>
         )}
 
-        {weeks.length === 0 && <p className="muted">No generated weeks yet.</p>}
+        {weeks.length === 0 && !trainingWeeks.isLoading && (
+          <p className="muted">No generated weeks yet.</p>
+        )}
 
         {selectedWeek && <TrainingWeekCard week={selectedWeek} />}
       </section>
+
+      <TrainingCalendar
+        weeks={weeks}
+        workouts={workouts.data ?? []}
+        calendarMonth={calendarMonth}
+        onCalendarMonthChange={setCalendarMonth}
+      />
     </div>
   );
 }
@@ -207,7 +212,7 @@ function TrainingWeekCard({ week }: { week: TrainingWeekDto }) {
   );
 
   return (
-    <article className="week-card">
+    <div className="week-card">
       <div className="week-header">
         <div>
           <h3>Week of {formatDate(week.weekStartDate)}</h3>
@@ -217,22 +222,19 @@ function TrainingWeekCard({ week }: { week: TrainingWeekDto }) {
           </p>
         </div>
 
-        <span className={`badge badge-${week.adjustmentMode.toLowerCase()}`}>
-          {week.adjustmentMode}
+        <span className={`status status-${week.status.toLowerCase()}`}>
+          {week.status}
         </span>
       </div>
 
-      {week.explanation && <p className="muted">{week.explanation}</p>}
+      {week.explanation && <p>{week.explanation}</p>}
 
       <div className="sessions">
         {sortedSessions.map((session) => (
-          <PlannedSessionCard
-            key={`${session.id}-${session.status}-${session.scheduledFor ?? "none"}`}
-            session={session}
-          />
+          <PlannedSessionCard key={session.id} session={session} />
         ))}
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -247,8 +249,8 @@ function PlannedSessionCard({ session }: { session: PlannedSessionDto }) {
   const isCompleted = session.status === "Completed";
   const isSkipped = session.status === "Skipped";
   const canEditSchedule = !isCompleted && !isSkipped;
-  const minimumScheduleValue = toDateTimeLocalValue();
 
+  const minimumScheduleValue = toDateTimeLocalValue();
   const scheduleIsPast =
     canEditSchedule && scheduledFor !== "" && new Date(scheduledFor) < new Date();
 
@@ -270,9 +272,7 @@ function PlannedSessionCard({ session }: { session: PlannedSessionDto }) {
   }
 
   return (
-    <article
-      className={`session-card session-type-${session.type.toLowerCase()}`}
-    >
+    <article className={`session-card session-type-${session.type.toLowerCase()}`}>
       <div className="session-header">
         <div>
           <h4>
@@ -308,27 +308,29 @@ function PlannedSessionCard({ session }: { session: PlannedSessionDto }) {
         </div>
       </dl>
 
-      {session.notes && <p className="muted">{session.notes}</p>}
+      {session.notes && <p>{session.notes}</p>}
 
       {session.reason && <p className="reason">{session.reason}</p>}
 
-      <div className="session-actions">
-        <input
-          type="datetime-local"
-          min={minimumScheduleValue}
-          value={scheduledFor}
-          onChange={(event) => setScheduledFor(event.target.value)}
-          disabled={!canEditSchedule}
-        />
+      <div className="form-grid">
+        <label className="field">
+          <span>Schedule date and time</span>
+          <input
+            type="datetime-local"
+            min={minimumScheduleValue}
+            value={scheduledFor}
+            onChange={(event) => setScheduledFor(event.target.value)}
+            disabled={!canEditSchedule}
+          />
+        </label>
+      </div>
 
+      <div className="session-actions">
         <button
           type="button"
           onClick={handleSchedule}
           disabled={
-            !scheduledFor ||
-            scheduleIsPast ||
-            !canEditSchedule ||
-            scheduleSession.isPending
+            !canEditSchedule || scheduleSession.isPending || scheduleIsPast
           }
         >
           Schedule
@@ -345,26 +347,36 @@ function PlannedSessionCard({ session }: { session: PlannedSessionDto }) {
       </div>
 
       {scheduleIsPast && canEditSchedule && (
-        <p className="error">Planned session cannot be scheduled in the past.</p>
+        <div className="notice-block notice-block-error">
+          <p>Planned session cannot be scheduled in the past.</p>
+        </div>
       )}
 
       {scheduleSession.error && (
-        <p className="error">{scheduleSession.error.message}</p>
+        <div className="notice-block notice-block-error">
+          <p>{scheduleSession.error.message}</p>
+        </div>
       )}
 
-      {skipSession.error && <p className="error">{skipSession.error.message}</p>}
+      {skipSession.error && (
+        <div className="notice-block notice-block-error">
+          <p>{skipSession.error.message}</p>
+        </div>
+      )}
     </article>
   );
 }
 
 interface TrainingCalendarProps {
   weeks: TrainingWeekDto[];
+  workouts: WorkoutDto[];
   calendarMonth: string;
   onCalendarMonthChange: (month: string) => void;
 }
 
 function TrainingCalendar({
   weeks,
+  workouts,
   calendarMonth,
   onCalendarMonthChange,
 }: TrainingCalendarProps) {
@@ -373,12 +385,27 @@ function TrainingCalendar({
     [calendarMonth],
   );
 
+  const completedPlannedSessionIds = useMemo(() => {
+    return new Set(
+      workouts
+        .map((workout) => workout.plannedSessionId)
+        .filter((id): id is number => id !== null),
+    );
+  }, [workouts]);
+
   const plannedSessionsByDate = useMemo(() => {
     const result = new Map<string, PlannedSessionDto[]>();
 
     for (const week of weeks) {
       for (const session of week.plannedSessions) {
         if (!session.scheduledFor) {
+          continue;
+        }
+
+        if (
+          session.status === "Completed" &&
+          completedPlannedSessionIds.has(session.id)
+        ) {
           continue;
         }
 
@@ -400,7 +427,29 @@ function TrainingCalendar({
     }
 
     return result;
-  }, [weeks]);
+  }, [completedPlannedSessionIds, weeks]);
+
+  const workoutsByDate = useMemo(() => {
+    const result = new Map<string, WorkoutDto[]>();
+
+    for (const workout of workouts) {
+      const dateKey = toLocalDateKey(new Date(workout.startedAt));
+      const existing = result.get(dateKey) ?? [];
+
+      existing.push(workout);
+      result.set(dateKey, existing);
+    }
+
+    for (const dayWorkouts of result.values()) {
+      dayWorkouts.sort((a, b) => {
+        return (
+          new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
+        );
+      });
+    }
+
+    return result;
+  }, [workouts]);
 
   function goToPreviousMonth() {
     onCalendarMonthChange(shiftMonth(calendarMonth, -1));
@@ -416,8 +465,8 @@ function TrainingCalendar({
         <div>
           <h3>Monthly training calendar</h3>
           <p className="muted">
-            Shows scheduled, skipped and completed sessions that have a planned
-            date.
+            Planned sessions are shown on their scheduled date. Completed
+            workouts are shown on the date they were actually performed.
           </p>
         </div>
 
@@ -458,33 +507,63 @@ function TrainingCalendar({
 
         {calendarDays.map((day, index) => {
           if (day === null) {
-            return <div key={`empty-${index}`} className="calendar-day empty" />;
+            return (
+              <div key={`empty-${index}`} className="calendar-day empty" />
+            );
           }
 
           const sessions = plannedSessionsByDate.get(day.dateKey) ?? [];
+          const dayWorkouts = workoutsByDate.get(day.dateKey) ?? [];
 
           return (
             <div key={day.dateKey} className="calendar-day">
               <div className="calendar-date">{day.dayOfMonth}</div>
 
               {sessions.map((session) => (
-                <div
-                  key={session.id}
-                  className={`calendar-session calendar-session-${session.status.toLowerCase()} session-type-${session.type.toLowerCase()}`}
-                >
-                  <strong>{session.type}</strong>
-                  <span>
-                    {session.status} ·{" "}
-                    {formatDuration(session.targetDurationSeconds)}
-                  </span>
-                  <span>{session.targetDistanceKm ?? "-"} km</span>
-                </div>
+                <CalendarPlannedSession key={session.id} session={session} />
+              ))}
+
+              {dayWorkouts.map((workout) => (
+                <CalendarWorkout key={workout.id} workout={workout} />
               ))}
             </div>
           );
         })}
       </div>
     </section>
+  );
+}
+
+function CalendarPlannedSession({
+  session,
+}: {
+  session: PlannedSessionDto;
+}) {
+  return (
+    <div
+      className={`calendar-session calendar-session-${session.status.toLowerCase()}`}
+      title={formatPlannedSessionTooltip(session)}
+    >
+      <strong>{session.type}</strong>
+      <span>{session.status}</span>
+      <span>{formatDuration(session.targetDurationSeconds)}</span>
+      <span>{session.targetDistanceKm ?? "-"} km</span>
+    </div>
+  );
+}
+
+function CalendarWorkout({ workout }: { workout: WorkoutDto }) {
+  return (
+    <div
+      className={`calendar-session calendar-workout calendar-workout-${String(
+        workout.source,
+      ).toLowerCase()}`}
+      title={formatWorkoutTooltip(workout)}
+    >
+      <strong>{workout.type}</strong>
+      <span>Done · {workout.distanceKm} km</span>
+      <span>{formatPace(workout.averagePaceSecondsPerKm)}</span>
+    </div>
   );
 }
 
@@ -495,15 +574,13 @@ interface CalendarDay {
 
 function buildCalendarDays(monthValue: string): Array<CalendarDay | null> {
   const [year, month] = monthValue.split("-").map(Number);
-
   const firstDay = new Date(year, month - 1, 1);
   const daysInMonth = new Date(year, month, 0).getDate();
-
   const mondayBasedStartIndex = (firstDay.getDay() + 6) % 7;
 
   const days: Array<CalendarDay | null> = [];
 
-  for (let i = 0; i < mondayBasedStartIndex; i += 1) {
+  for (let index = 0; index < mondayBasedStartIndex; index += 1) {
     days.push(null);
   }
 
@@ -527,4 +604,41 @@ function shiftMonth(monthValue: string, offset: number): string {
   const shiftedMonth = String(date.getMonth() + 1).padStart(2, "0");
 
   return `${shiftedYear}-${shiftedMonth}`;
+}
+
+function formatPlannedSessionTooltip(session: PlannedSessionDto): string {
+  const parts = [
+    `Planned: ${session.type}`,
+    `Status: ${session.status}`,
+    `Duration: ${formatDuration(session.targetDurationSeconds)}`,
+    `Distance: ${session.targetDistanceKm ?? "-"} km`,
+  ];
+
+  if (session.targetPaceSecondsPerKm !== null) {
+    parts.push(`Pace: ${formatPace(session.targetPaceSecondsPerKm)}`);
+  }
+
+  if (session.scheduledFor !== null) {
+    parts.push(`Scheduled: ${formatDateTime(session.scheduledFor)}`);
+  }
+
+  return parts.join("\n");
+}
+
+function formatWorkoutTooltip(workout: WorkoutDto): string {
+  const parts = [
+    `Completed: ${workout.type}`,
+    `Source: ${workout.source}`,
+    `Started: ${formatDateTime(workout.startedAt)}`,
+    `Distance: ${workout.distanceKm} km`,
+    `Duration: ${formatDuration(workout.durationSeconds)}`,
+    `Pace: ${formatPace(workout.averagePaceSecondsPerKm)}`,
+    `RPE: ${workout.rpe}`,
+  ];
+
+  if (workout.plannedSessionId !== null) {
+    parts.push("Linked to planned session");
+  }
+
+  return parts.join("\n");
 }
