@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useAuth } from "../auth/useAuth";
 
 export type AppPage =
   | "dashboard"
@@ -31,28 +32,48 @@ export function AppShell({
   onPageChange,
   children,
 }: AppShellProps) {
+  const { user, logout } = useAuth();
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div>
-          <h1 className="brand">Smart Run Tracker</h1>
-          <p className="brand-subtitle">Adaptive running planner</p>
-        </div>
+        <h1 className="brand">
+          Smart
+          <br />
+          Run
+          <br />
+          Tracker
+        </h1>
+
+        <p className="brand-subtitle">Adaptive running planner</p>
+
+        {user && (
+          <div className="sidebar-user">
+            <strong>{user.displayName}</strong>
+            <span>{user.email}</span>
+          </div>
+        )}
 
         <nav className="nav">
           {navigationItems.map((item) => (
             <button
               key={item.page}
               type="button"
-              className={
-                activePage === item.page ? "nav-button active" : "nav-button"
-              }
+              className={`nav-button ${item.page === activePage ? "active" : ""}`}
               onClick={() => onPageChange(item.page)}
             >
               {item.label}
             </button>
           ))}
         </nav>
+
+        <button
+          className="secondary-button sidebar-logout"
+          type="button"
+          onClick={() => void logout()}
+        >
+          Logout
+        </button>
       </aside>
 
       <main className="main-content">{children}</main>

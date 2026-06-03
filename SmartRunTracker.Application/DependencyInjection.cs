@@ -27,6 +27,8 @@ public static class DependencyInjection
         services.AddScoped<IExternalWorkoutImportService, ExternalWorkoutImportService>();
         services.AddScoped<IPlannedVsActualAnalyzer, PlannedVsActualAnalyzer>();
         services.AddScoped<IWorkoutInsightBuilder, WorkoutInsightBuilder>();
+
+        services.AddScoped<IAuthService, AuthService>();
         return services;
     }
 }

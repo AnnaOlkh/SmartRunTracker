@@ -12,6 +12,7 @@ public sealed class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly ICurrentUserService _currentUserService;
+    private const string RefreshTokenCookieName = "smartRunTracker.refreshToken";
 
     public AuthController(
         IAuthService authService,
@@ -23,13 +24,16 @@ public sealed class AuthController : ControllerBase
 
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(
-        RegisterRequest request,
-        CancellationToken cancellationToken)
+    RegisterRequest request,
+    CancellationToken cancellationToken)
     {
         try
         {
-            var response = await _authService.RegisterAsync(request, cancellationToken);
-            return Ok(response);
+            var result = await _authService.RegisterAsync(request, cancellationToken);
+
+            SetRefreshTokenCookie(result.RefreshToken);
+
+            return Ok(ToResponse(result));
         }
         catch (InvalidOperationException exception)
         {
@@ -43,13 +47,16 @@ public sealed class AuthController : ControllerBase
 
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponse>> Login(
-        LoginRequest request,
-        CancellationToken cancellationToken)
+    LoginRequest request,
+    CancellationToken cancellationToken)
     {
         try
         {
-            var response = await _authService.LoginAsync(request, cancellationToken);
-            return Ok(response);
+            var result = await _authService.LoginAsync(request, cancellationToken);
+
+            SetRefreshTokenCookie(result.RefreshToken);
+
+            return Ok(ToResponse(result));
         }
         catch (UnauthorizedAccessException exception)
         {
@@ -59,26 +66,38 @@ public sealed class AuthController : ControllerBase
 
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthResponse>> Refresh(
-        RefreshTokenRequest request,
-        CancellationToken cancellationToken)
+    CancellationToken cancellationToken)
     {
         try
         {
-            var response = await _authService.RefreshAsync(request, cancellationToken);
-            return Ok(response);
+            if (!Request.Cookies.TryGetValue(RefreshTokenCookieName, out var refreshToken))
+            {
+                return Unauthorized(new { message = "Refresh token cookie was not found." });
+            }
+
+            var result = await _authService.RefreshAsync(refreshToken, cancellationToken);
+
+            SetRefreshTokenCookie(result.RefreshToken);
+
+            return Ok(ToResponse(result));
         }
         catch (UnauthorizedAccessException exception)
         {
+            DeleteRefreshTokenCookie();
             return Unauthorized(new { message = exception.Message });
         }
     }
 
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout(
-        RefreshTokenRequest request,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> Logout(CancellationToken cancellationToken)
     {
-        await _authService.LogoutAsync(request, cancellationToken);
+        if (Request.Cookies.TryGetValue(RefreshTokenCookieName, out var refreshToken))
+        {
+            await _authService.LogoutAsync(refreshToken, cancellationToken);
+        }
+
+        DeleteRefreshTokenCookie();
+
         return NoContent();
     }
 
@@ -97,5 +116,41 @@ public sealed class AuthController : ControllerBase
         }
 
         return Ok(response);
+    }
+    private void SetRefreshTokenCookie(string refreshToken)
+    {
+        Response.Cookies.Append(
+            RefreshTokenCookieName,
+            refreshToken,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Expires = DateTimeOffset.UtcNow.AddDays(14),
+                Path = "/api/auth"
+            });
+    }
+
+    private void DeleteRefreshTokenCookie()
+    {
+        Response.Cookies.Delete(
+            RefreshTokenCookieName,
+            new CookieOptions
+            {
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Path = "/api/auth"
+            });
+    }
+
+    private static AuthResponse ToResponse(AuthResult result)
+    {
+        return new AuthResponse(
+            result.UserId,
+            result.DisplayName,
+            result.Email,
+            result.AccessToken,
+            result.AccessTokenExpiresAt);
     }
 }

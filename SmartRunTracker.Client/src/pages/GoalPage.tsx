@@ -8,6 +8,7 @@ import {
   useRunningGoals,
 } from "../hooks/useRunningGoals";
 import { formatDate, formatPace, toLocalDateKey } from "../utils/format";
+import { ApiError } from "../api/client";
 
 type NoticeKind = "success" | "error";
 
@@ -34,6 +35,11 @@ export function GoalPage() {
   const [goalDate, setGoalDate] = useState("2026-08-01");
 
   const parsedPace = parsePace(targetPace);
+
+  const activeGoalError =
+  activeGoal.error instanceof ApiError && activeGoal.error.status !== 404
+    ? activeGoal.error.message
+    : null;
 
   useEffect(() => {
     if (goalNotice === null) {
@@ -185,8 +191,8 @@ export function GoalPage() {
 
         {activeGoal.isLoading && <p className="muted">Loading active goal...</p>}
 
-        {activeGoal.error && (
-          <NoticeBlock kind="error" message={activeGoal.error.message} />
+        {activeGoalError && (
+          <NoticeBlock kind="error" message={activeGoalError} />
         )}
 
         {activeGoal.data ? (
@@ -209,7 +215,8 @@ export function GoalPage() {
             </div>
           </div>
         ) : (
-          !activeGoal.isLoading && <p className="muted">No active goal yet.</p>
+          !activeGoal.isLoading &&
+          !activeGoalError && <p className="muted">No active goal yet.</p>
         )}
       </section>
 

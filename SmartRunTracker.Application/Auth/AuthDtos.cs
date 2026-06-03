@@ -9,10 +9,14 @@ public sealed record LoginRequest(
     string Email,
     string Password);
 
-public sealed record RefreshTokenRequest(
-    string RefreshToken);
-
 public sealed record AuthResponse(
+    int UserId,
+    string DisplayName,
+    string Email,
+    string AccessToken,
+    DateTimeOffset AccessTokenExpiresAt);
+
+public sealed record AuthResult(
     int UserId,
     string DisplayName,
     string Email,

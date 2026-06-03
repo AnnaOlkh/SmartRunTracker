@@ -2,20 +2,20 @@
 
 public interface IAuthService
 {
-    Task<AuthResponse> RegisterAsync(
+    Task<AuthResult> RegisterAsync(
         RegisterRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<AuthResponse> LoginAsync(
+    Task<AuthResult> LoginAsync(
         LoginRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<AuthResponse> RefreshAsync(
-        RefreshTokenRequest request,
+    Task<AuthResult> RefreshAsync(
+        string refreshToken,
         CancellationToken cancellationToken = default);
 
     Task LogoutAsync(
-        RefreshTokenRequest request,
+        string refreshToken,
         CancellationToken cancellationToken = default);
 
     Task<CurrentUserResponse?> GetMeAsync(

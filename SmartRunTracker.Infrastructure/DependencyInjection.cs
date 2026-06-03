@@ -38,9 +38,9 @@ public static class DependencyInjection
         services.AddScoped<ITrainingPlanRepository, TrainingPlanRepository>();
         services.AddScoped<IDemoScenarioService, DemoScenarioService>();
         services.AddScoped<IExternalWorkoutFileParser, GpxWorkoutFileParser>();
+        services.AddScoped<IAuthRepository, AuthRepository>();
         services.AddScoped<ITokenService, TokenService>();
-        services.AddScoped<IAuthService, AuthService>();
-        services.AddScoped<ITokenService, TokenService>();
+        services.AddScoped<IPasswordHashService, PasswordHashService>();
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         return services;
     }

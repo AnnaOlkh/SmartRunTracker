@@ -1172,3 +1172,120 @@ textarea {
 .comparison-summary {
   margin-top: 12px;
 }
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  border: 1px solid #d7dde8;
+  border-radius: 18px;
+  padding: 28px;
+  background: #ffffff;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+.sidebar-user {
+  margin-top: 24px;
+  border: 1px solid #e3e8f2;
+  border-radius: 16px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.sidebar-user strong {
+  display: block;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.sidebar-user span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.sidebar-logout {
+  width: 100%;
+  margin-top: 18px;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.08), transparent 34%),
+    #f6f8fb;
+}
+
+.auth-card {
+  width: min(440px, 100%);
+  border: 1px solid #e3e8f2;
+  border-radius: 20px;
+  padding: 28px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+.auth-card h1 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 32px;
+}
+
+.auth-form-grid {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.auth-form-grid label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.auth-error-message {
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #991b1b;
+  background: #fef2f2;
+}
+
+.auth-primary-button {
+  width: 100%;
+}
+
+.auth-link-button {
+  display: inline-flex;
+  margin-top: 16px;
+  padding: 0;
+  color: #2563eb;
+  background: transparent;
+  box-shadow: none;
+}
+
+.auth-link-button:hover {
+  color: #1d4ed8;
+  background: transparent;
+  text-decoration: underline;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #2563eb;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 800;
+}
