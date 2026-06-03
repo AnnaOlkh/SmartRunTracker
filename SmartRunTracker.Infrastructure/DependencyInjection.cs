@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SmartRunTracker.Application.Auth;
 using SmartRunTracker.Application.Common;
+using SmartRunTracker.Application.Demo;
 using SmartRunTracker.Application.ExternalWorkouts.Abstractions;
 using SmartRunTracker.Application.RunnerProfiles;
 using SmartRunTracker.Application.RunningGoals;
@@ -11,6 +12,7 @@ using SmartRunTracker.Application.TrainingPlans;
 using SmartRunTracker.Application.Workouts;
 using SmartRunTracker.Domain.Entities;
 using SmartRunTracker.Infrastructure.Auth;
+using SmartRunTracker.Infrastructure.Demo;
 using SmartRunTracker.Infrastructure.ExternalWorkouts.Gpx;
 using SmartRunTracker.Infrastructure.Persistence;
 using SmartRunTracker.Infrastructure.Persistence.Repositories;
@@ -42,6 +44,8 @@ public static class DependencyInjection
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<IPasswordHashService, PasswordHashService>();
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+
+        services.AddScoped<DemoDataSeeder>();
         return services;
     }
 }

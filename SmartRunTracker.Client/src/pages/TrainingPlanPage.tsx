@@ -131,51 +131,44 @@ export function TrainingPlanPage() {
         )}
       </section>
 
-      <section className="card">
-        <h3>Generated week</h3>
+      <section className="card generated-week-card">
+        <div className="section-header section-header-with-actions">
+          <h3>Generated week</h3>
 
-        <div className="week-pager">
-          <div>
-            <p className="muted">
-              Select a generated week instead of rendering all weeks as one long
-              list.
-            </p>
-          </div>
+          <div className="week-pager">
+            <div className="week-pager-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={selectPreviousWeek}
+                disabled={selectedWeekIndex <= 0}
+              >
+                Previous
+              </button>
 
-          <div className="week-pager-actions">
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={selectPreviousWeek}
-              disabled={selectedWeekIndex <= 0}
-            >
-              Previous
-            </button>
+              <select
+                value={selectedWeek?.id ?? ""}
+                onChange={(event) => setSelectedWeekId(Number(event.target.value))}
+                disabled={weeks.length === 0}
+              >
+                {weeks.map((week) => (
+                  <option key={week.id} value={week.id}>
+                    {formatDate(week.weekStartDate)} · {week.adjustmentMode}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              value={selectedWeek?.id ?? ""}
-              onChange={(event) =>
-                setSelectedWeekId(Number(event.target.value))
-              }
-              disabled={weeks.length === 0}
-            >
-              {weeks.map((week) => (
-                <option key={week.id} value={week.id}>
-                  {formatDate(week.weekStartDate)} · {week.adjustmentMode}
-                </option>
-              ))}
-            </select>
-
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={selectNextWeek}
-              disabled={
-                selectedWeekIndex < 0 || selectedWeekIndex >= weeks.length - 1
-              }
-            >
-              Next
-            </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={selectNextWeek}
+                disabled={
+                  selectedWeekIndex < 0 || selectedWeekIndex >= weeks.length - 1
+                }
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
 
@@ -216,18 +209,41 @@ function TrainingWeekCard({ week }: { week: TrainingWeekDto }) {
       <div className="week-header">
         <div>
           <h3>Week of {formatDate(week.weekStartDate)}</h3>
-          <p className="muted">
-            {week.adjustmentMode} · {week.targetWorkoutCount} sessions ·{" "}
-            {formatDuration(week.targetWeekDurationSeconds)}
-          </p>
+          <div className="week-summary-row">
+            <div className="week-summary-meta">
+              <span
+                className={`adjustment-badge adjustment-${week.adjustmentMode.toLowerCase()}`}
+              >
+                {week.adjustmentMode}
+              </span>
+
+              <span>{week.plannedSessions.length} sessions</span>
+              <span>{formatDuration(week.targetWeekDurationSeconds)}</span>
+            </div>
+
+            {week.explanation && (
+              <div className="week-explanation-tooltip">
+                <button
+                  type="button"
+                  className="week-explanation-trigger"
+                  aria-label={`Why ${week.adjustmentMode} mode was selected`}
+                >
+                  i
+                </button>
+
+                <div className="week-explanation-content" role="tooltip">
+                  <strong>Why {week.adjustmentMode}?</strong>
+                  <p>{week.explanation}</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <span className={`status status-${week.status.toLowerCase()}`}>
           {week.status}
         </span>
       </div>
-
-      {week.explanation && <p>{week.explanation}</p>}
 
       <div className="sessions">
         {sortedSessions.map((session) => (
@@ -464,10 +480,6 @@ function TrainingCalendar({
       <div className="calendar-toolbar">
         <div>
           <h3>Monthly training calendar</h3>
-          <p className="muted">
-            Planned sessions are shown on their scheduled date. Completed
-            workouts are shown on the date they were actually performed.
-          </p>
         </div>
 
         <div className="month-actions">
@@ -480,7 +492,6 @@ function TrainingCalendar({
           </button>
 
           <label className="field">
-            <span>Month</span>
             <input
               type="month"
               value={calendarMonth}
@@ -541,9 +552,13 @@ function CalendarPlannedSession({
 }) {
   return (
     <div
-      className={`calendar-session calendar-session-${session.status.toLowerCase()}`}
-      title={formatPlannedSessionTooltip(session)}
-    >
+        className={[
+          "calendar-session",
+          `calendar-session-${session.status.toLowerCase()}`,
+          getCalendarTypeClass(session.type),
+        ].join(" ")}
+        title={formatPlannedSessionTooltip(session)}
+      >
       <strong>{session.type}</strong>
       <span>{session.status}</span>
       <span>{formatDuration(session.targetDurationSeconds)}</span>
@@ -555,11 +570,14 @@ function CalendarPlannedSession({
 function CalendarWorkout({ workout }: { workout: WorkoutDto }) {
   return (
     <div
-      className={`calendar-session calendar-workout calendar-workout-${String(
-        workout.source,
-      ).toLowerCase()}`}
-      title={formatWorkoutTooltip(workout)}
-    >
+  className={[
+          "calendar-session",
+          "calendar-workout",
+          `calendar-workout-${workout.source.toLowerCase()}`,
+          getCalendarTypeClass(workout.type),
+        ].join(" ")}
+        title={formatWorkoutTooltip(workout)}
+      >
       <strong>{workout.type}</strong>
       <span>Done · {workout.distanceKm} km</span>
       <span>{formatPace(workout.averagePaceSecondsPerKm)}</span>
@@ -641,4 +659,7 @@ function formatWorkoutTooltip(workout: WorkoutDto): string {
   }
 
   return parts.join("\n");
+}
+function getCalendarTypeClass(type: string): string {
+  return `calendar-type-${type.toLowerCase()}`;
 }

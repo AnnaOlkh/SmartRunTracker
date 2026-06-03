@@ -520,7 +520,183 @@ textarea {
 .calendar-session span {
   color: #475569;
 }
+.calendar-session.calendar-type-easy {
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+}
 
+.calendar-session.calendar-type-easy strong {
+  color: #15803d;
+}
+
+.calendar-session.calendar-type-quality {
+  border: 1px solid #fdba74;
+  background: #fff7ed;
+}
+
+.calendar-session.calendar-type-quality strong {
+  color: #c2410c;
+}
+
+.calendar-session.calendar-type-long {
+  border: 1px solid #c4b5fd;
+  background: #f5f3ff;
+}
+
+.calendar-session.calendar-type-long strong {
+  color: #6d28d9;
+}
+
+.calendar-session.calendar-type-recovery {
+  border: 1px solid #67e8f9;
+  background: #ecfeff;
+}
+
+.calendar-session.calendar-type-recovery strong {
+  color: #0e7490;
+}
+.calendar-session.calendar-session-skipped {
+  border: 1px solid #fecaca;
+  background: #fee2e2;
+}
+
+.calendar-session.calendar-session-skipped strong {
+  color: #b91c1c;
+}
+.section-header-with-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+}
+
+.section-header-with-actions h3 {
+  margin: 0;
+} 
+.card.generated-week-card {
+  padding-bottom: 20px;
+}
+.week-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 8px 0 18px;
+}
+
+.week-summary-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #64748b;
+}
+
+.week-summary-meta span:not(.adjustment-badge)::before {
+  content: "·";
+  margin-right: 8px;
+  color: #94a3b8;
+}
+
+.adjustment-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.adjustment-maintain {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.adjustment-progress {
+  color: #15803d;
+  background: #dcfce7;
+}
+
+.adjustment-deload {
+  color: #b45309;
+  background: #fef3c7;
+}
+
+.week-explanation-tooltip {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.week-explanation-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 28px;
+  height: 28px;
+  padding: 0;
+
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: none;
+
+  color: #475569;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+
+  cursor: help;
+}
+
+.week-explanation-trigger:hover,
+.week-explanation-trigger:focus-visible {
+  border-color: #2563eb;
+  color: #2563eb;
+  background: #ffffff;
+  box-shadow: none;
+  outline: none;
+}
+
+.week-explanation-content {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 20;
+  width: min(520px, 70vw);
+  border: 1px solid #dbe3ef;
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
+  color: #0f172a;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease,
+    visibility 0.15s ease;
+}
+
+.week-explanation-content strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.week-explanation-content p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.55;
+}
+
+.week-explanation-tooltip:hover .week-explanation-content,
+.week-explanation-tooltip:focus-within .week-explanation-content {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;

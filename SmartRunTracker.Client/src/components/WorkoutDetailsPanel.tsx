@@ -1,8 +1,14 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "../api/client";
+import { queryKeys } from "../api/queryKeys";
 import type {
+  PlannedSessionDto,
   WorkoutDetailsDto,
   WorkoutInsightDto,
   WorkoutSplitDto,
 } from "../api/types";
+import { workoutsApi } from "../api/workoutsApi";
 import { formatDateTime, formatDuration, formatPace } from "../utils/format";
 import { WorkoutRouteMap } from "./WorkoutRouteMap";
 
@@ -16,6 +22,42 @@ export function WorkoutDetailsPanel({
   onClose,
 }: WorkoutDetailsPanelProps) {
   const summary = details.summary;
+  const queryClient = useQueryClient();
+
+  const [selectedPlannedSessionId, setSelectedPlannedSessionId] = useState("");
+
+  const shouldShowLinkBlock = details.plannedSession === null;
+
+  const availablePlannedSessions = useQuery({
+    queryKey: ["workouts", summary.id, "available-planned-sessions"],
+    queryFn: () => workoutsApi.getAvailablePlannedSessions(summary.id),
+    enabled: shouldShowLinkBlock,
+  });
+
+  const linkPlannedSession = useMutation({
+    mutationFn: () => {
+      return workoutsApi.linkPlannedSession(summary.id, {
+        plannedSessionId: Number(selectedPlannedSessionId),
+      });
+    },
+    onSuccess: async (updatedDetails) => {
+      queryClient.setQueryData(
+        queryKeys.workoutDetails(summary.id),
+        updatedDetails,
+      );
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.workouts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.trainingWeeks }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.workoutDetails(summary.id),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["workouts", summary.id, "available-planned-sessions"],
+        }),
+      ]);
+    },
+  });
 
   return (
     <section className="card modal-card">
@@ -71,6 +113,19 @@ export function WorkoutDetailsPanel({
         </div>
       )}
 
+      {shouldShowLinkBlock && (
+        <LinkPlannedSessionBlock
+          availablePlannedSessions={availablePlannedSessions.data ?? []}
+          isLoading={availablePlannedSessions.isLoading}
+          error={availablePlannedSessions.error}
+          selectedPlannedSessionId={selectedPlannedSessionId}
+          onSelectedPlannedSessionIdChange={setSelectedPlannedSessionId}
+          onLink={() => linkPlannedSession.mutate()}
+          isLinking={linkPlannedSession.isPending}
+          linkError={linkPlannedSession.error}
+        />
+      )}
+
       {details.plannedSession && (
         <PlannedSessionComparisonBlock details={details} />
       )}
@@ -86,6 +141,92 @@ export function WorkoutDetailsPanel({
 
       <InsightsBlock insights={details.insights} />
     </section>
+  );
+}
+
+interface LinkPlannedSessionBlockProps {
+  availablePlannedSessions: PlannedSessionDto[];
+  isLoading: boolean;
+  error: unknown;
+  selectedPlannedSessionId: string;
+  onSelectedPlannedSessionIdChange: (value: string) => void;
+  onLink: () => void;
+  isLinking: boolean;
+  linkError: unknown;
+}
+
+function LinkPlannedSessionBlock({
+  availablePlannedSessions,
+  isLoading,
+  error,
+  selectedPlannedSessionId,
+  onSelectedPlannedSessionIdChange,
+  onLink,
+  isLinking,
+  linkError,
+}: LinkPlannedSessionBlockProps) {
+  const canLink = selectedPlannedSessionId !== "" && !isLinking;
+
+  const errorMessage = error ? getErrorMessage(error) : null;
+  const linkErrorMessage = linkError ? getErrorMessage(linkError) : null;
+
+  return (
+    <div className="details-block">
+      <h4>Link to planned session</h4>
+
+      <p className="muted">
+        This workout is not linked to a generated session yet. Select one of the
+        planned sessions from the training week that contains this workout date.
+      </p>
+
+      {isLoading && <p className="muted">Loading planned sessions...</p>}
+
+      {errorMessage ? (
+        <div className="notice-block notice-block-error">
+          <p>{errorMessage}</p>
+        </div>
+      ) : null}
+
+      {!isLoading && !errorMessage && availablePlannedSessions.length === 0 && (
+        <p className="muted">
+          No generated training week was found for this workout date.
+        </p>
+      )}
+
+        {!isLoading && !errorMessage && availablePlannedSessions.length > 0 && (
+        <div className="form-grid">
+          <label className="field">
+            <span>Planned session</span>
+
+            <select
+              value={selectedPlannedSessionId}
+              onChange={(event) =>
+                onSelectedPlannedSessionIdChange(event.target.value)
+              }
+            >
+              <option value="">Select planned session</option>
+
+              {availablePlannedSessions.map((session) => (
+                <option key={session.id} value={session.id}>
+                  {formatPlannedSessionOption(session)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {linkErrorMessage ? (
+            <div className="notice-block notice-block-error">
+              <p>{linkErrorMessage}</p>
+            </div>
+          ) : null}
+          <div className="actions">
+            <button type="button" disabled={!canLink} onClick={onLink}>
+              {isLinking ? "Linking..." : "Link planned session"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -124,9 +265,7 @@ function PlannedSessionComparisonBlock({
               <td>{plannedSession.type}</td>
               <td>{details.summary.type}</td>
               <td>
-                {plannedVsActual?.type.isMatched
-                  ? "Matched"
-                  : "Different"}
+                {plannedVsActual?.type.isMatched ? "Matched" : "Different"}
               </td>
             </tr>
 
@@ -252,6 +391,24 @@ function InsightsBlock({ insights }: InsightsBlockProps) {
   );
 }
 
+function formatPlannedSessionOption(session: PlannedSessionDto): string {
+  const scheduledFor = session.scheduledFor
+    ? formatDateTime(session.scheduledFor)
+    : "Unscheduled";
+
+  const distance =
+    session.targetDistanceKm === null ? "-" : `${session.targetDistanceKm} km`;
+
+  const pace =
+    session.targetPaceSecondsPerKm === null
+      ? "-"
+      : formatPace(session.targetPaceSecondsPerKm);
+
+  return `${session.status} · ${scheduledFor} · ${session.type} · ${session.intensity} · ${distance} · ${formatDuration(
+    session.targetDurationSeconds,
+  )} · ${pace}`;
+}
+
 function isVisibleInsight(insight: WorkoutInsightDto): boolean {
   return (
     insight.title === "Fastest split" ||
@@ -259,16 +416,17 @@ function isVisibleInsight(insight: WorkoutInsightDto): boolean {
     insight.title === "Variable pacing"
   );
 }
+
 function formatMetricResult(status: string | undefined): string {
   switch (status) {
     case "Matched":
-      return "Within tolerance";
+      return "Matched";
 
     case "LowerThanPlanned":
-      return "Below planned";
+      return "Lower than planned";
 
     case "HigherThanPlanned":
-      return "Above planned";
+      return "Higher than planned";
 
     case "FasterThanPlanned":
       return "Faster than planned";
@@ -277,26 +435,37 @@ function formatMetricResult(status: string | undefined): string {
       return "Slower than planned";
 
     case "NotAvailable":
-    case undefined:
-      return "-";
+      return "Not available";
 
     default:
-      return String(status);
+      return "-";
   }
 }
 
 function formatComparisonSummary(status: string): string {
   switch (status) {
     case "Matched":
-      return "Completed according to plan.";
+      return "Actual workout matches the planned session.";
 
     case "PartiallyMatched":
-      return "Partially completed according to plan.";
+      return "Actual workout partially matches the planned session.";
 
     case "NotMatched":
-      return "Did not match the planned session.";
+      return "Actual workout differs from the planned session.";
 
     default:
-      return "Compared with planned session.";
+      return "Comparison is not available.";
   }
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Request failed.";
 }

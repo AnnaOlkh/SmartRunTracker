@@ -7,6 +7,7 @@ using SmartRunTracker.Application.Auth;
 using System.Text;
 using SmartRunTracker.Api.Auth;
 using SmartRunTracker.Application.Common;
+using SmartRunTracker.Infrastructure.Demo;
 
 const string FrontendCorsPolicy = "FrontendCorsPolicy";
 
@@ -120,4 +121,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+if (app.Environment.IsDevelopment())
+{
+    await app.SeedDemoDataAsync();
+}
 app.Run();

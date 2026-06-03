@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SmartRunTracker.Application.Common;
+using SmartRunTracker.Application.TrainingPlans;
 using SmartRunTracker.Application.Workouts;
 
 namespace SmartRunTracker.Api.Controllers;
@@ -137,5 +138,44 @@ public sealed class WorkoutsController : ControllerBase
         }
 
         return NoContent();
+    }
+    [HttpGet("{id:int}/available-planned-sessions")]
+    public async Task<ActionResult<IReadOnlyList<PlannedSessionDto>>> GetAvailablePlannedSessions(
+    int id,
+    CancellationToken cancellationToken)
+    {
+        var sessions = await _workoutService.GetAvailablePlannedSessionsAsync(
+            _currentUserService.UserId,
+            id,
+            cancellationToken);
+
+        return Ok(sessions);
+    }
+
+    [HttpPatch("{id:int}/planned-session")]
+    public async Task<ActionResult<WorkoutDetailsDto>> LinkPlannedSession(
+        int id,
+        LinkWorkoutPlannedSessionRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var workout = await _workoutService.LinkPlannedSessionAsync(
+                _currentUserService.UserId,
+                id,
+                request,
+                cancellationToken);
+
+            if (workout is null)
+            {
+                return NotFound();
+            }
+
+            return Ok(workout);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
     }
 }

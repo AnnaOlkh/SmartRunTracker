@@ -2,6 +2,8 @@ import { apiRequest } from "./client";
 import type {
   CreateWorkoutRequest,
   ImportGpxWorkoutRequest,
+  LinkWorkoutPlannedSessionRequest,
+  PlannedSessionDto,
   UpdateWorkoutRequest,
   WorkoutDetailsDto,
   WorkoutDto,
@@ -19,14 +21,27 @@ export const workoutsApi = {
   getDetails: (id: number) => {
     return apiRequest<WorkoutDetailsDto>(`/workouts/${id}/details`);
   },
-
+  getAvailablePlannedSessions: (id: number) => {
+    return apiRequest<PlannedSessionDto[]>(
+      `/workouts/${id}/available-planned-sessions`,
+    );
+  },
+  
+  linkPlannedSession: (
+    id: number,
+    request: LinkWorkoutPlannedSessionRequest,
+  ) => {
+    return apiRequest<WorkoutDetailsDto>(`/workouts/${id}/planned-session`, {
+      method: "PATCH",
+      body: request,
+    });
+  },
   create: (request: CreateWorkoutRequest) => {
     return apiRequest<WorkoutDto>("/workouts", {
       method: "POST",
       body: request,
     });
   },
-
   importGpx: (request: ImportGpxWorkoutRequest) => {
     const formData = new FormData();
 

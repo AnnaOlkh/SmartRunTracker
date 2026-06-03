@@ -139,7 +139,9 @@ export interface WorkoutDetailsDto {
   hasSplits: boolean;
   insights: WorkoutInsightDto[];
 }
-
+export interface LinkWorkoutPlannedSessionRequest {
+  plannedSessionId: number;
+}
 export interface ImportGpxWorkoutRequest {
   file: File;
   plannedSessionId: number | null;

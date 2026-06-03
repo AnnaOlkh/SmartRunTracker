@@ -621,9 +621,10 @@ export function WorkoutsPage() {
 
             {workoutDetails.data && (
               <WorkoutDetailsPanel
-                details={workoutDetails.data}
-                onClose={() => setSelectedWorkoutId(null)}
-              />
+              key={workoutDetails.data.summary.id}
+              details={workoutDetails.data}
+              onClose={() => setSelectedWorkoutId(null)}
+            />
             )}
           </div>
         </div>
