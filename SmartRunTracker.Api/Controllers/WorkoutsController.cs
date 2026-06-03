@@ -1,18 +1,22 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SmartRunTracker.Application.Common;
 using SmartRunTracker.Application.Workouts;
 
 namespace SmartRunTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/workouts")]
 public sealed class WorkoutsController : ControllerBase
 {
     private readonly IWorkoutService _workoutService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public WorkoutsController(IWorkoutService workoutService)
+    public WorkoutsController(IWorkoutService workoutService, ICurrentUserService currentUserService)
     {
         _workoutService = workoutService;
+        _currentUserService = currentUserService;
     }
 
     [HttpGet]
@@ -20,7 +24,7 @@ public sealed class WorkoutsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var workouts = await _workoutService.GetAllAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             cancellationToken);
 
         return Ok(workouts);
@@ -32,7 +36,7 @@ public sealed class WorkoutsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var workout = await _workoutService.GetByIdAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             id,
             cancellationToken);
 
@@ -49,7 +53,7 @@ public sealed class WorkoutsController : ControllerBase
     CancellationToken cancellationToken)
     {
         var workout = await _workoutService.GetDetailsAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             id,
             cancellationToken);
 
@@ -69,7 +73,7 @@ public sealed class WorkoutsController : ControllerBase
         try
         {
             var workout = await _workoutService.CreateAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 request,
                 cancellationToken);
 
@@ -96,7 +100,7 @@ public sealed class WorkoutsController : ControllerBase
         try
         {
             var workout = await _workoutService.UpdateAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 id,
                 request,
                 cancellationToken);
@@ -123,7 +127,7 @@ public sealed class WorkoutsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var deleted = await _workoutService.DeleteAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             id,
             cancellationToken);
 

@@ -1,18 +1,22 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SmartRunTracker.Application.Common;
 using SmartRunTracker.Application.RunningGoals;
 
 namespace SmartRunTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/running-goals")]
 public sealed class RunningGoalsController : ControllerBase
 {
     private readonly IRunningGoalService _runningGoalService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public RunningGoalsController(IRunningGoalService runningGoalService)
+    public RunningGoalsController(IRunningGoalService runningGoalService, ICurrentUserService currentUserService)
     {
         _runningGoalService = runningGoalService;
+        _currentUserService = currentUserService;
     }
 
     [HttpGet("active")]
@@ -20,7 +24,7 @@ public sealed class RunningGoalsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var goal = await _runningGoalService.GetActiveAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             cancellationToken);
 
         if (goal is null)
@@ -39,7 +43,7 @@ public sealed class RunningGoalsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var goals = await _runningGoalService.GetAllAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             cancellationToken);
 
         return Ok(goals);
@@ -53,7 +57,7 @@ public sealed class RunningGoalsController : ControllerBase
         try
         {
             var goal = await _runningGoalService.CreateAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 request,
                 cancellationToken);
 
@@ -79,7 +83,7 @@ public sealed class RunningGoalsController : ControllerBase
         try
         {
             var goal = await _runningGoalService.ActivateAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 id,
                 cancellationToken);
 
@@ -105,7 +109,7 @@ public sealed class RunningGoalsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var deleted = await _runningGoalService.DeleteAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             id,
             cancellationToken);
 

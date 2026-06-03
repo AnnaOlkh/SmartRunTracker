@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<RunnerAvailableDay> RunnerAvailableDays => Set<RunnerAvailableDay>();
     public DbSet<WorkoutRoutePoint> WorkoutRoutePoints => Set<WorkoutRoutePoint>();
     public DbSet<WorkoutSplit> WorkoutSplits => Set<WorkoutSplit>();
+    public DbSet<UserRefreshToken> UserRefreshTokens => Set<UserRefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -34,6 +35,7 @@ public class AppDbContext : DbContext
         ConfigureTrainingWeeks(modelBuilder);
         ConfigurePlannedSessions(modelBuilder);
         ConfigureRunnerAvailableDays(modelBuilder);
+        ConfigureUserRefreshTokens(modelBuilder);
     }
 
     private static void ConfigureUsers(ModelBuilder modelBuilder)
@@ -49,12 +51,51 @@ public class AppDbContext : DbContext
                 .IsRequired();
 
             entity.Property(x => x.Email)
-                .HasMaxLength(255);
+                .HasMaxLength(255)
+                .IsRequired();
+
+            entity.Property(x => x.PasswordHash)
+                .HasMaxLength(500)
+                .IsRequired();
 
             entity.Property(x => x.CreatedAt)
                 .IsRequired();
 
             entity.HasIndex(x => x.Email)
+                .IsUnique();
+        });
+    }
+    private static void ConfigureUserRefreshTokens(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<UserRefreshToken>(entity =>
+        {
+            entity.ToTable("user_refresh_tokens");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.TokenHash)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            entity.Property(x => x.ExpiresAt)
+                .IsRequired();
+
+            entity.Property(x => x.CreatedAt)
+                .IsRequired();
+
+            entity.Property(x => x.RevokedAt);
+
+            entity.Property(x => x.ReplacedByTokenHash)
+                .HasMaxLength(128);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.RefreshTokens)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.UserId);
+
+            entity.HasIndex(x => x.TokenHash)
                 .IsUnique();
         });
     }

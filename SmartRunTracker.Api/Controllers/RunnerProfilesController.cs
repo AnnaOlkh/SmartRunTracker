@@ -1,18 +1,22 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SmartRunTracker.Application.Common;
 using SmartRunTracker.Application.RunnerProfiles;
 
 namespace SmartRunTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/runner-profile")]
 public sealed class RunnerProfilesController : ControllerBase
 {
     private readonly IRunnerProfileService _runnerProfileService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public RunnerProfilesController(IRunnerProfileService runnerProfileService)
+    public RunnerProfilesController(IRunnerProfileService runnerProfileService, ICurrentUserService currentUserService)
     {
         _runnerProfileService = runnerProfileService;
+        _currentUserService = currentUserService;
     }
 
     [HttpGet]
@@ -20,7 +24,7 @@ public sealed class RunnerProfilesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var profile = await _runnerProfileService.GetOrCreateAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             cancellationToken);
 
         return Ok(profile);
@@ -34,7 +38,7 @@ public sealed class RunnerProfilesController : ControllerBase
         try
         {
             var profile = await _runnerProfileService.UpdateAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 request,
                 cancellationToken);
 

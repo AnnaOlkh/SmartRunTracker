@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using SmartRunTracker.Api.Auth;
 using SmartRunTracker.Api.Contracts.WorkoutImports;
 using SmartRunTracker.Application.Common;
 using SmartRunTracker.Application.ExternalWorkouts.Abstractions;
@@ -7,15 +9,18 @@ using SmartRunTracker.Application.ExternalWorkouts.Models;
 namespace SmartRunTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/workout-imports")]
 public sealed class WorkoutImportsController : ControllerBase
 {
     private readonly IExternalWorkoutImportService _externalWorkoutImportService;
+    private readonly ICurrentUserService _currentUserService;
 
     public WorkoutImportsController(
-        IExternalWorkoutImportService externalWorkoutImportService)
+        IExternalWorkoutImportService externalWorkoutImportService, ICurrentUserService currentUserService)
     {
         _externalWorkoutImportService = externalWorkoutImportService;
+        _currentUserService = currentUserService;
     }
 
     [HttpPost("gpx")]
@@ -41,7 +46,7 @@ public sealed class WorkoutImportsController : ControllerBase
 
         var options = new ExternalWorkoutImportOptions
         {
-            UserId = DemoUser.Id,
+            UserId = _currentUserService.UserId,
             PlannedSessionId = request.PlannedSessionId,
             WorkoutType = request.WorkoutType,
             Rpe = request.Rpe,

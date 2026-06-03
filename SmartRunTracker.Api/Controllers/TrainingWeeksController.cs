@@ -1,18 +1,22 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SmartRunTracker.Application.Common;
 using SmartRunTracker.Application.TrainingPlans;
 
 namespace SmartRunTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/training-weeks")]
 public sealed class TrainingWeeksController : ControllerBase
 {
     private readonly ITrainingPlanService _trainingPlanService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public TrainingWeeksController(ITrainingPlanService trainingPlanService)
+    public TrainingWeeksController(ITrainingPlanService trainingPlanService, ICurrentUserService currentUserService)
     {
         _trainingPlanService = trainingPlanService;
+        _currentUserService = currentUserService;
     }
 
     [HttpPost("generate")]
@@ -23,7 +27,7 @@ public sealed class TrainingWeeksController : ControllerBase
         try
         {
             var week = await _trainingPlanService.GenerateWeekAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 request,
                 cancellationToken);
 
@@ -43,7 +47,7 @@ public sealed class TrainingWeeksController : ControllerBase
         CancellationToken cancellationToken)
     {
         var weeks = await _trainingPlanService.GetWeeksAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             cancellationToken);
 
         return Ok(weeks);
@@ -55,7 +59,7 @@ public sealed class TrainingWeeksController : ControllerBase
         CancellationToken cancellationToken)
     {
         var week = await _trainingPlanService.GetWeekByIdAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             id,
             cancellationToken);
 
