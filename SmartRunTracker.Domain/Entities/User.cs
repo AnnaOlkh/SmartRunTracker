@@ -6,7 +6,9 @@ public class User
 
     public string DisplayName { get; set; } = string.Empty;
 
-    public string? Email { get; set; }
+    public string Email { get; set; } = string.Empty;
+
+    public string PasswordHash { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
@@ -17,4 +19,6 @@ public class User
     public ICollection<Workout> Workouts { get; set; } = new List<Workout>();
 
     public ICollection<TrainingWeek> TrainingWeeks { get; set; } = new List<TrainingWeek>();
+
+    public ICollection<UserRefreshToken> RefreshTokens { get; set; } = new List<UserRefreshToken>();
 }

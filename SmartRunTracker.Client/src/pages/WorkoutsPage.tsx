@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   PlannedSessionDto,
   RunningGoalDto,
@@ -7,11 +7,14 @@ import type {
   WorkoutType,
 } from "../api/types";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { WorkoutDetailsPanel } from "../components/WorkoutDetailsPanel";
 import { useActiveRunningGoal } from "../hooks/useRunningGoals";
 import { useTrainingWeeks } from "../hooks/useTrainingWeeks";
 import {
   useCreateWorkout,
   useDeleteWorkout,
+  useImportGpxWorkout,
+  useWorkoutDetails,
   useWorkouts,
 } from "../hooks/useWorkouts";
 import {
@@ -19,18 +22,33 @@ import {
   formatDuration,
   formatPace,
   toDateTimeLocalValue,
-  toLocalDateKey,
 } from "../utils/format";
 
 const workoutTypes: WorkoutType[] = ["Easy", "Quality", "Long", "Recovery"];
+
+type NoticeKind = "success" | "error";
+
+interface Notice {
+  kind: NoticeKind;
+  message: string;
+}
 
 export function WorkoutsPage() {
   const workouts = useWorkouts();
   const trainingWeeks = useTrainingWeeks();
   const activeGoal = useActiveRunningGoal();
 
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState<number | null>(
+    null,
+  );
+
   const createWorkout = useCreateWorkout();
   const deleteWorkout = useDeleteWorkout();
+  const importGpxWorkout = useImportGpxWorkout();
+  const workoutDetails = useWorkoutDetails(selectedWorkoutId);
+
+  const [isAddWorkoutOpen, setIsAddWorkoutOpen] = useState(false);
+  const [isImportGpxOpen, setIsImportGpxOpen] = useState(false);
 
   const [startedAt, setStartedAt] = useState(toDateTimeLocalValue());
   const [distanceKm, setDistanceKm] = useState("5");
@@ -41,9 +59,45 @@ export function WorkoutsPage() {
   const [type, setType] = useState<WorkoutType>("Easy");
   const [plannedSessionId, setPlannedSessionId] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [gpxFile, setGpxFile] = useState<File | null>(null);
+  const [gpxInputKey, setGpxInputKey] = useState(0);
+  const [importRpe, setImportRpe] = useState("5");
+  const [importType, setImportType] = useState<WorkoutType>("Easy");
+  const [importNotes, setImportNotes] = useState("");
+
+  const [hasTriedCreateSubmit, setHasTriedCreateSubmit] = useState(false);
+  const [hasTriedImportSubmit, setHasTriedImportSubmit] = useState(false);
+  const [createNotice, setCreateNotice] = useState<Notice | null>(null);
+  const [importNotice, setImportNotice] = useState<Notice | null>(null);
+
   const [workoutIdPendingDelete, setWorkoutIdPendingDelete] = useState<
     number | null
   >(null);
+
+  useEffect(() => {
+    if (createNotice === null) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCreateNotice(null);
+    }, 3500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [createNotice]);
+
+  useEffect(() => {
+    if (importNotice === null) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setImportNotice(null);
+    }, 4500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [importNotice]);
 
   const availablePlannedSessions = useMemo(() => {
     return getPlannedSessionsForStartedAtWeek(
@@ -52,6 +106,15 @@ export function WorkoutsPage() {
     );
   }, [trainingWeeks.data, startedAt]);
 
+  const sortedWorkouts = useMemo(() => {
+    return (workouts.data ?? [])
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+      );
+  }, [workouts.data]);
+
   const formValidationError = getWorkoutFormValidationError({
     startedAt,
     distanceKm,
@@ -59,6 +122,11 @@ export function WorkoutsPage() {
     minutes,
     seconds,
     rpe,
+  });
+
+  const gpxImportValidationError = getGpxImportValidationError({
+    file: gpxFile,
+    rpe: importRpe,
   });
 
   const goalAchievementMessage =
@@ -106,6 +174,8 @@ export function WorkoutsPage() {
   }
 
   function handleCreate() {
+    setHasTriedCreateSubmit(true);
+
     if (formValidationError !== null) {
       return;
     }
@@ -113,16 +183,80 @@ export function WorkoutsPage() {
     const durationSeconds =
       Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds);
 
-    createWorkout.mutate({
-      startedAt: new Date(startedAt).toISOString(),
-      distanceKm: Number(distanceKm),
-      durationSeconds,
-      rpe: Number(rpe),
-      type,
-      notes: notes.trim() === "" ? null : notes.trim(),
-      plannedSessionId:
-        plannedSessionId.trim() === "" ? null : Number(plannedSessionId),
-    });
+    createWorkout.mutate(
+      {
+        startedAt: new Date(startedAt).toISOString(),
+        distanceKm: Number(distanceKm),
+        durationSeconds,
+        rpe: Number(rpe),
+        type,
+        notes: notes.trim() === "" ? null : notes.trim(),
+        plannedSessionId:
+          plannedSessionId.trim() === "" ? null : Number(plannedSessionId),
+      },
+      {
+        onSuccess: (createdWorkout) => {
+          setCreateNotice({
+            kind: "success",
+            message: "Workout saved.",
+          });
+          setHasTriedCreateSubmit(false);
+          setSelectedWorkoutId(createdWorkout.id);
+        },
+        onError: (error) => {
+          setCreateNotice({
+            kind: "error",
+            message: getErrorMessage(error),
+          });
+        },
+      },
+    );
+  }
+
+  function handleGpxFileChange(file: File | null) {
+    setGpxFile(file);
+  }
+
+
+  function handleImportGpx() {
+    setHasTriedImportSubmit(true);
+
+    if (gpxImportValidationError !== null || gpxFile === null) {
+      return;
+    }
+
+    importGpxWorkout.mutate(
+      {
+        file: gpxFile,
+        plannedSessionId: null,
+        workoutType: importType,
+        rpe: Number(importRpe),
+        notes: importNotes.trim() === "" ? null : importNotes.trim(),
+      },
+      {
+        onSuccess: (createdWorkout) => {
+          setGpxFile(null);
+          setGpxInputKey((value) => value + 1);
+          setImportRpe("5");
+          setImportType("Easy");
+          setImportNotes("");
+          setHasTriedImportSubmit(false);
+
+          setImportNotice({
+            kind: "success",
+            message: "GPX workout imported.",
+          });
+
+          setSelectedWorkoutId(createdWorkout.id);
+        },
+        onError: (error) => {
+          setImportNotice({
+            kind: "error",
+            message: getErrorMessage(error),
+          });
+        },
+      },
+    );
   }
 
   function confirmDeleteWorkout() {
@@ -132,6 +266,10 @@ export function WorkoutsPage() {
 
     deleteWorkout.mutate(workoutIdPendingDelete, {
       onSuccess: () => {
+        if (selectedWorkoutId === workoutIdPendingDelete) {
+          setSelectedWorkoutId(null);
+        }
+
         setWorkoutIdPendingDelete(null);
       },
     });
@@ -142,139 +280,248 @@ export function WorkoutsPage() {
       <div className="page-header">
         <div>
           <h2>Workouts</h2>
-          <p>Add completed runs and link them to planned sessions.</p>
+          <p>Add completed runs, import GPX files, and review workout details.</p>
         </div>
       </div>
 
-      <section className="card">
-        <h3>Add workout</h3>
+      <section className="card collapsible-card">
+      <button
+        type="button"
+        className="collapsible-header"
+        onClick={() => setIsAddWorkoutOpen((value) => !value)}
+      >
+        <span>Add workout</span>
+        <span className="collapsible-indicator">
+          {isAddWorkoutOpen ? "−" : "+"}
+        </span>
+      </button>
 
-        <div className="form-grid">
-          <label className="field">
-            <span>Started at</span>
-            <input
-              type="datetime-local"
-              max={toDateTimeLocalValue()}
-              value={startedAt}
-              onChange={(event) => handleStartedAtChange(event.target.value)}
-            />
-          </label>
+        {isAddWorkoutOpen && (
+          <div className="collapsible-content">
+            <div className="form-grid">
+              <label className="field">
+                <span>Started at</span>
+                <input
+                  type="datetime-local"
+                  max={toDateTimeLocalValue()}
+                  value={startedAt}
+                  onChange={(event) =>
+                    handleStartedAtChange(event.target.value)
+                  }
+                />
+              </label>
 
-          <label className="field">
-            <span>Link to planned session, optional</span>
-            <select
-              value={plannedSessionId}
-              onChange={(event) => handlePlannedSessionChange(event.target.value)}
-            >
-              <option value="">Do not link</option>
+              <label className="field">
+                <span>Link to planned session, optional</span>
+                <select
+                  value={plannedSessionId}
+                  onChange={(event) =>
+                    handlePlannedSessionChange(event.target.value)
+                  }
+                >
+                  <option value="">Do not link</option>
 
-              {availablePlannedSessions.map((session) => (
-                <option key={session.id} value={session.id}>
-                  {formatPlannedSessionOption(session)}
-                </option>
-              ))}
-            </select>
-          </label>
+                  {availablePlannedSessions.map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {formatPlannedSessionOption(session)}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-          <label className="field">
-            <span>Distance, km</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={distanceKm}
-              onChange={(event) => setDistanceKm(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>Distance, km</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={distanceKm}
+                  onChange={(event) => setDistanceKm(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>Hours</span>
-            <input
-              type="number"
-              min="0"
-              value={hours}
-              onChange={(event) => setHours(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>Hours</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={hours}
+                  onChange={(event) => setHours(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>Minutes</span>
-            <input
-              type="number"
-              min="0"
-              max="59"
-              value={minutes}
-              onChange={(event) => setMinutes(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>Minutes</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={minutes}
+                  onChange={(event) => setMinutes(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>Seconds</span>
-            <input
-              type="number"
-              min="0"
-              max="59"
-              value={seconds}
-              onChange={(event) => setSeconds(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>Seconds</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  value={seconds}
+                  onChange={(event) => setSeconds(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>RPE</span>
-            <input
-              type="number"
-              min="1"
-              max="10"
-              value={rpe}
-              onChange={(event) => setRpe(event.target.value)}
-            />
-          </label>
+              <label className="field">
+                <span>RPE</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={rpe}
+                  onChange={(event) => setRpe(event.target.value)}
+                />
+              </label>
 
-          <label className="field">
-            <span>Type</span>
-            <select
-              value={type}
-              onChange={(event) => setType(event.target.value as WorkoutType)}
-            >
-              {workoutTypes.map((workoutType) => (
-                <option key={workoutType} value={workoutType}>
-                  {workoutType}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+              <label className="field">
+                <span>Type</span>
+                <select
+                  value={type}
+                  onChange={(event) =>
+                    setType(event.target.value as WorkoutType)
+                  }
+                >
+                  {workoutTypes.map((workoutType) => (
+                    <option key={workoutType} value={workoutType}>
+                      {workoutType}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
 
-        <label className="field" style={{ marginTop: 14 }}>
-          <span>Notes</span>
-          <textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-          />
-        </label>
+            <label className="field" style={{ marginTop: 14 }}>
+              <span>Notes</span>
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+              />
+            </label>
 
-        {formValidationError && <p className="error">{formValidationError}</p>}
+            {hasTriedCreateSubmit && formValidationError && (
+              <NoticeBlock kind="error" message={formValidationError} />
+            )}
 
-        <div className="actions">
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={createWorkout.isPending || formValidationError !== null}
-          >
-            {createWorkout.isPending ? "Saving..." : "Add workout"}
-          </button>
-        </div>
+            <div className="actions">
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={createWorkout.isPending}
+              >
+                {createWorkout.isPending ? "Saving..." : "Add workout"}
+              </button>
+            </div>
 
-        {createWorkout.error && (
-          <p className="error">{createWorkout.error.message}</p>
+            {createNotice && (
+              <NoticeBlock
+                kind={createNotice.kind}
+                message={createNotice.message}
+              />
+            )}
+
+            {goalAchievementMessage && (
+              <div className="goal-notification">
+                <strong>Goal matched.</strong>
+                <p>{goalAchievementMessage}</p>
+              </div>
+            )}
+          </div>
         )}
+      </section>
 
-        {createWorkout.data && <p className="success">Workout saved.</p>}
+      <section className="card collapsible-card">
+      <button
+        type="button"
+        className="collapsible-header"
+        onClick={() => setIsImportGpxOpen((value) => !value)}
+      >
+        <span>Import GPX</span>
+        <span className="collapsible-indicator">
+          {isImportGpxOpen ? "−" : "+"}
+        </span>
+      </button>
 
-        {goalAchievementMessage && (
-          <div className="goal-notification">
-            <strong>Goal matched.</strong>
-            <p>{goalAchievementMessage}</p>
+        {isImportGpxOpen && (
+          <div className="collapsible-content">
+            <div className="form-grid">
+              <label className="field">
+                <span>GPX file</span>
+                <input
+                  key={gpxInputKey}
+                  type="file"
+                  accept=".gpx,application/gpx+xml,application/xml,text/xml"
+                  onChange={(event) =>
+                    handleGpxFileChange(event.target.files?.[0] ?? null)
+                  }
+                />
+              </label>
+
+              <label className="field">
+                <span>RPE</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={importRpe}
+                  onChange={(event) => setImportRpe(event.target.value)}
+                />
+              </label>
+
+              <label className="field">
+                <span>Type</span>
+                <select
+                  value={importType}
+                  onChange={(event) =>
+                    setImportType(event.target.value as WorkoutType)
+                  }
+                >
+                  {workoutTypes.map((workoutType) => (
+                    <option key={workoutType} value={workoutType}>
+                      {workoutType}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="field" style={{ marginTop: 14 }}>
+              <span>Notes</span>
+              <textarea
+                value={importNotes}
+                onChange={(event) => setImportNotes(event.target.value)}
+              />
+            </label>
+
+            {hasTriedImportSubmit && gpxImportValidationError && (
+              <NoticeBlock kind="error" message={gpxImportValidationError} />
+            )}
+
+            <div className="actions">
+              <button
+                type="button"
+                onClick={handleImportGpx}
+                disabled={importGpxWorkout.isPending}
+              >
+                {importGpxWorkout.isPending ? "Importing..." : "Import GPX"}
+              </button>
+            </div>
+
+            {importNotice && (
+              <NoticeBlock
+                kind={importNotice.kind}
+                message={importNotice.message}
+              />
+            )}
           </div>
         )}
       </section>
@@ -286,19 +533,49 @@ export function WorkoutsPage() {
 
         {workouts.error && <p className="error">{workouts.error.message}</p>}
 
-        {workouts.data?.length === 0 && (
+        {!workouts.isLoading && sortedWorkouts.length === 0 && (
           <p className="muted">No workouts yet.</p>
         )}
 
         <div className="scroll-panel">
           <div className="list">
-            {workouts.data?.map((workout) => (
-              <article key={workout.id} className="list-item">
-                <div className="list-item-header">
+            {sortedWorkouts.map((workout) => (
+              <article key={workout.id} className="workout-history-item">
+                <div className="workout-history-main">
                   <div>
-                    <h4>{workout.type}</h4>
-                    <p className="muted">{formatDateTime(workout.startedAt)}</p>
+                    <h4>
+                      {workout.type}
+                      <span className={getSourceBadgeClassName(workout.source)}>
+                        {workout.source}
+                      </span>
+                    </h4>
+
+                    <p className="muted">
+                      {formatDateTime(workout.startedAt)}
+                      {workout.plannedSessionId
+                        ? " · Linked planned session"
+                        : ""}
+                    </p>
                   </div>
+
+                  <div className="workout-history-metrics">
+                    <span>{workout.distanceKm} km</span>
+                    <span>{formatDuration(workout.durationSeconds)}</span>
+                    <span>{formatPace(workout.averagePaceSecondsPerKm)}</span>
+                    <span>RPE {workout.rpe}</span>
+                  </div>
+                </div>
+
+                {workout.notes && <p className="muted">{workout.notes}</p>}
+
+                <div className="actions-inline">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setSelectedWorkoutId(workout.id)}
+                  >
+                    Details
+                  </button>
 
                   <button
                     type="button"
@@ -309,26 +586,49 @@ export function WorkoutsPage() {
                     Delete
                   </button>
                 </div>
-
-                <p>
-                  {workout.distanceKm} km ·{" "}
-                  {formatDuration(workout.durationSeconds)} ·{" "}
-                  {formatPace(workout.averagePaceSecondsPerKm)}
-                </p>
-
-                <p className="muted">
-                  RPE: {workout.rpe} · Load: {workout.sessionLoad}
-                  {workout.plannedSessionId
-                    ? " · Linked planned session"
-                    : ""}
-                </p>
-
-                {workout.notes && <p>{workout.notes}</p>}
               </article>
             ))}
           </div>
         </div>
       </section>
+
+      {selectedWorkoutId !== null && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-panel modal-panel-large">
+            {workoutDetails.isLoading && (
+              <section className="card modal-card">
+                <h3>Workout details</h3>
+                <p className="muted">Loading workout details...</p>
+              </section>
+            )}
+
+            {workoutDetails.error && (
+              <section className="card modal-card">
+                <h3>Workout details</h3>
+                <NoticeBlock
+                  kind="error"
+                  message={workoutDetails.error.message}
+                />
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setSelectedWorkoutId(null)}
+                >
+                  Close
+                </button>
+              </section>
+            )}
+
+            {workoutDetails.data && (
+              <WorkoutDetailsPanel
+              key={workoutDetails.data.summary.id}
+              details={workoutDetails.data}
+              onClose={() => setSelectedWorkoutId(null)}
+            />
+            )}
+          </div>
+        </div>
+      )}
 
       {workoutIdPendingDelete !== null && (
         <ConfirmDialog
@@ -342,12 +642,30 @@ export function WorkoutsPage() {
   );
 }
 
+interface NoticeBlockProps {
+  kind: NoticeKind;
+  message: string;
+}
+
+function NoticeBlock({ kind, message }: NoticeBlockProps) {
+  return (
+    <div className={`notice-block notice-block-${kind}`}>
+      <p>{message}</p>
+    </div>
+  );
+}
+
 interface WorkoutFormValues {
   startedAt: string;
   distanceKm: string;
   hours: string;
   minutes: string;
   seconds: string;
+  rpe: string;
+}
+
+interface GpxImportFormValues {
+  file: File | null;
   rpe: string;
 }
 
@@ -382,9 +700,33 @@ function getWorkoutFormValidationError(values: WorkoutFormValues): string | null
     return "Duration must be greater than zero.";
   }
 
-  const rpe = Number(values.rpe);
+  const rpeValue = Number(values.rpe);
 
-  if (rpe < 1 || rpe > 10) {
+  if (!Number.isFinite(rpeValue) || rpeValue < 1 || rpeValue > 10) {
+    return "RPE must be between 1 and 10.";
+  }
+
+  return null;
+}
+
+function getGpxImportValidationError(
+  values: GpxImportFormValues,
+): string | null {
+  if (values.file === null) {
+    return "GPX file is required.";
+  }
+
+  if (!values.file.name.toLowerCase().endsWith(".gpx")) {
+    return "Only .gpx files are supported.";
+  }
+
+  if (values.file.size <= 0) {
+    return "GPX file is empty.";
+  }
+
+  const rpeValue = Number(values.rpe);
+
+  if (!Number.isFinite(rpeValue) || rpeValue < 1 || rpeValue > 10) {
     return "RPE must be between 1 and 10.";
   }
 
@@ -401,11 +743,12 @@ function getPlannedSessionsForStartedAtWeek(
     return [];
   }
 
-  const weekStart = getMondayStart(selectedDate);
-  const weekStartKey = toLocalDateKey(weekStart);
-
   const matchingWeek = trainingWeeks.find((week) => {
-    return week.weekStartDate === weekStartKey;
+    const weekStart = parseLocalDate(week.weekStartDate);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+
+    return selectedDate >= weekStart && selectedDate < weekEnd;
   });
 
   if (!matchingWeek) {
@@ -413,25 +756,36 @@ function getPlannedSessionsForStartedAtWeek(
   }
 
   return matchingWeek.plannedSessions
-  .filter((session) => {
-    return (
-      session.status === "Unscheduled" ||
-      session.status === "Scheduled" ||
-      session.status === "Skipped"
-    );
-  })
-  .sort((a, b) => {
-    const statusOrder = getPlannedSessionStatusOrder(a.status)
-      - getPlannedSessionStatusOrder(b.status);
+    .filter(isImportablePlannedSession)
+    .sort((a, b) => {
+      const statusOrder =
+        getPlannedSessionStatusOrder(a.status) -
+        getPlannedSessionStatusOrder(b.status);
 
-    if (statusOrder !== 0) {
-      return statusOrder;
-    }
+      if (statusOrder !== 0) {
+        return statusOrder;
+      }
 
-    return a.sortOrder - b.sortOrder;
-  });
+      return a.sortOrder - b.sortOrder;
+    });
 }
-function getPlannedSessionStatusOrder(status: PlannedSessionDto["status"]): number {
+
+function parseLocalDate(dateKey: string): Date {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+function isImportablePlannedSession(session: PlannedSessionDto): boolean {
+  return (
+    session.status === "Unscheduled" ||
+    session.status === "Scheduled" ||
+    session.status === "Skipped"
+  );
+}
+
+function getPlannedSessionStatusOrder(
+  status: PlannedSessionDto["status"],
+): number {
   switch (status) {
     case "Scheduled":
       return 1;
@@ -449,15 +803,6 @@ function getPlannedSessionStatusOrder(status: PlannedSessionDto["status"]): numb
       return 5;
   }
 }
-function getMondayStart(date: Date): Date {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-
-  const mondayBasedDayIndex = (result.getDay() + 6) % 7;
-  result.setDate(result.getDate() - mondayBasedDayIndex);
-
-  return result;
-}
 
 function formatPlannedSessionOption(session: PlannedSessionDto): string {
   const scheduledLabel = session.scheduledFor
@@ -467,6 +812,10 @@ function formatPlannedSessionOption(session: PlannedSessionDto): string {
   return `${session.status} · ${scheduledLabel} · ${session.type} · ${formatDuration(
     session.targetDurationSeconds,
   )} · ${session.targetDistanceKm ?? "-"} km`;
+}
+
+function getSourceBadgeClassName(source: WorkoutDto["source"]): string {
+  return `source-badge source-badge-${String(source).toLowerCase()}`;
 }
 
 function getGoalAchievementMessage(
@@ -488,4 +837,12 @@ function getGoalAchievementMessage(
   }
 
   return null;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Request failed.";
 }

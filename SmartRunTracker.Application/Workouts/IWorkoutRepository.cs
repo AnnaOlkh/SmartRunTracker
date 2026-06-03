@@ -18,6 +18,10 @@ public interface IWorkoutRepository
         int userId,
         int workoutId,
         CancellationToken cancellationToken = default);
+    Task<Workout?> GetDetailsByIdAsync(
+    int userId,
+    int workoutId,
+    CancellationToken cancellationToken = default);
 
     Task<Workout> AddAsync(
         Workout workout,

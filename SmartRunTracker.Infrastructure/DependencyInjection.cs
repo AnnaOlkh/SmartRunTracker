@@ -1,11 +1,19 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using SmartRunTracker.Application.Auth;
 using SmartRunTracker.Application.Common;
+using SmartRunTracker.Application.Demo;
+using SmartRunTracker.Application.ExternalWorkouts.Abstractions;
 using SmartRunTracker.Application.RunnerProfiles;
 using SmartRunTracker.Application.RunningGoals;
 using SmartRunTracker.Application.TrainingPlans;
 using SmartRunTracker.Application.Workouts;
+using SmartRunTracker.Domain.Entities;
+using SmartRunTracker.Infrastructure.Auth;
+using SmartRunTracker.Infrastructure.Demo;
+using SmartRunTracker.Infrastructure.ExternalWorkouts.Gpx;
 using SmartRunTracker.Infrastructure.Persistence;
 using SmartRunTracker.Infrastructure.Persistence.Repositories;
 using SmartRunTracker.Infrastructure.Persistence.Services;
@@ -31,7 +39,13 @@ public static class DependencyInjection
         services.AddScoped<IRunningGoalRepository, RunningGoalRepository>();
         services.AddScoped<ITrainingPlanRepository, TrainingPlanRepository>();
         services.AddScoped<IDemoScenarioService, DemoScenarioService>();
+        services.AddScoped<IExternalWorkoutFileParser, GpxWorkoutFileParser>();
+        services.AddScoped<IAuthRepository, AuthRepository>();
+        services.AddScoped<ITokenService, TokenService>();
+        services.AddScoped<IPasswordHashService, PasswordHashService>();
+        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 
+        services.AddScoped<DemoDataSeeder>();
         return services;
     }
 }

@@ -239,8 +239,14 @@ namespace SmartRunTracker.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.HasKey("Id");
 
@@ -248,6 +254,45 @@ namespace SmartRunTracker.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("SmartRunTracker.Domain.Entities.UserRefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReplacedByTokenHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("user_refresh_tokens", (string)null);
                 });
 
             modelBuilder.Entity("SmartRunTracker.Domain.Entities.Workout", b =>
@@ -304,6 +349,95 @@ namespace SmartRunTracker.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("workouts", (string)null);
+                });
+
+            modelBuilder.Entity("SmartRunTracker.Domain.Entities.WorkoutRoutePoint", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("DistanceFromStartMeters")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("numeric(10,2)");
+
+                    b.Property<decimal?>("ElevationMeters")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)");
+
+                    b.Property<decimal>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)");
+
+                    b.Property<decimal>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PaceSecondsPerKm")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("SecondsFromStart")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WorkoutId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkoutId");
+
+                    b.HasIndex("WorkoutId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("workout_route_points", (string)null);
+                });
+
+            modelBuilder.Entity("SmartRunTracker.Domain.Entities.WorkoutSplit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AveragePaceSecondsPerKm")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("DistanceKm")
+                        .HasPrecision(6, 3)
+                        .HasColumnType("numeric(6,3)");
+
+                    b.Property<int>("DurationSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SplitNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("WorkoutId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkoutId");
+
+                    b.HasIndex("WorkoutId", "SplitNumber")
+                        .IsUnique();
+
+                    b.ToTable("workout_splits", (string)null);
                 });
 
             modelBuilder.Entity("SmartRunTracker.Domain.Entities.PlannedSession", b =>
@@ -369,6 +503,17 @@ namespace SmartRunTracker.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SmartRunTracker.Domain.Entities.UserRefreshToken", b =>
+                {
+                    b.HasOne("SmartRunTracker.Domain.Entities.User", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("SmartRunTracker.Domain.Entities.Workout", b =>
                 {
                     b.HasOne("SmartRunTracker.Domain.Entities.PlannedSession", "PlannedSession")
@@ -385,6 +530,28 @@ namespace SmartRunTracker.Infrastructure.Persistence.Migrations
                     b.Navigation("PlannedSession");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("SmartRunTracker.Domain.Entities.WorkoutRoutePoint", b =>
+                {
+                    b.HasOne("SmartRunTracker.Domain.Entities.Workout", "Workout")
+                        .WithMany("RoutePoints")
+                        .HasForeignKey("WorkoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Workout");
+                });
+
+            modelBuilder.Entity("SmartRunTracker.Domain.Entities.WorkoutSplit", b =>
+                {
+                    b.HasOne("SmartRunTracker.Domain.Entities.Workout", "Workout")
+                        .WithMany("Splits")
+                        .HasForeignKey("WorkoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Workout");
                 });
 
             modelBuilder.Entity("SmartRunTracker.Domain.Entities.PlannedSession", b =>
@@ -409,6 +576,8 @@ namespace SmartRunTracker.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("SmartRunTracker.Domain.Entities.User", b =>
                 {
+                    b.Navigation("RefreshTokens");
+
                     b.Navigation("RunnerProfile");
 
                     b.Navigation("RunningGoals");
@@ -416,6 +585,13 @@ namespace SmartRunTracker.Infrastructure.Persistence.Migrations
                     b.Navigation("TrainingWeeks");
 
                     b.Navigation("Workouts");
+                });
+
+            modelBuilder.Entity("SmartRunTracker.Domain.Entities.Workout", b =>
+                {
+                    b.Navigation("RoutePoints");
+
+                    b.Navigation("Splits");
                 });
 #pragma warning restore 612, 618
         }

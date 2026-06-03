@@ -18,6 +18,9 @@ public class AppDbContext : DbContext
     public DbSet<TrainingWeek> TrainingWeeks => Set<TrainingWeek>();
     public DbSet<PlannedSession> PlannedSessions => Set<PlannedSession>();
     public DbSet<RunnerAvailableDay> RunnerAvailableDays => Set<RunnerAvailableDay>();
+    public DbSet<WorkoutRoutePoint> WorkoutRoutePoints => Set<WorkoutRoutePoint>();
+    public DbSet<WorkoutSplit> WorkoutSplits => Set<WorkoutSplit>();
+    public DbSet<UserRefreshToken> UserRefreshTokens => Set<UserRefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -27,9 +30,12 @@ public class AppDbContext : DbContext
         ConfigureRunnerProfiles(modelBuilder);
         ConfigureRunningGoals(modelBuilder);
         ConfigureWorkouts(modelBuilder);
+        ConfigureWorkoutRoutePoints(modelBuilder);
+        ConfigureWorkoutSplits(modelBuilder);
         ConfigureTrainingWeeks(modelBuilder);
         ConfigurePlannedSessions(modelBuilder);
         ConfigureRunnerAvailableDays(modelBuilder);
+        ConfigureUserRefreshTokens(modelBuilder);
     }
 
     private static void ConfigureUsers(ModelBuilder modelBuilder)
@@ -45,12 +51,51 @@ public class AppDbContext : DbContext
                 .IsRequired();
 
             entity.Property(x => x.Email)
-                .HasMaxLength(255);
+                .HasMaxLength(255)
+                .IsRequired();
+
+            entity.Property(x => x.PasswordHash)
+                .HasMaxLength(500)
+                .IsRequired();
 
             entity.Property(x => x.CreatedAt)
                 .IsRequired();
 
             entity.HasIndex(x => x.Email)
+                .IsUnique();
+        });
+    }
+    private static void ConfigureUserRefreshTokens(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<UserRefreshToken>(entity =>
+        {
+            entity.ToTable("user_refresh_tokens");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.TokenHash)
+                .HasMaxLength(128)
+                .IsRequired();
+
+            entity.Property(x => x.ExpiresAt)
+                .IsRequired();
+
+            entity.Property(x => x.CreatedAt)
+                .IsRequired();
+
+            entity.Property(x => x.RevokedAt);
+
+            entity.Property(x => x.ReplacedByTokenHash)
+                .HasMaxLength(128);
+
+            entity.HasOne(x => x.User)
+                .WithMany(x => x.RefreshTokens)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.UserId);
+
+            entity.HasIndex(x => x.TokenHash)
                 .IsUnique();
         });
     }
@@ -167,7 +212,85 @@ public class AppDbContext : DbContext
             entity.HasIndex(x => x.StartedAt);
         });
     }
+    private static void ConfigureWorkoutRoutePoints(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<WorkoutRoutePoint>(entity =>
+        {
+            entity.ToTable("workout_route_points");
 
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.Order)
+                .IsRequired();
+
+            entity.Property(x => x.Latitude)
+                .HasPrecision(9, 6)
+                .IsRequired();
+
+            entity.Property(x => x.Longitude)
+                .HasPrecision(9, 6)
+                .IsRequired();
+
+            entity.Property(x => x.ElevationMeters)
+                .HasPrecision(8, 2);
+
+            entity.Property(x => x.RecordedAt);
+
+            entity.Property(x => x.DistanceFromStartMeters)
+                .HasPrecision(10, 2)
+                .IsRequired();
+
+            entity.Property(x => x.SecondsFromStart);
+
+            entity.Property(x => x.PaceSecondsPerKm);
+
+            entity.HasOne(x => x.Workout)
+                .WithMany(x => x.RoutePoints)
+                .HasForeignKey(x => x.WorkoutId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.WorkoutId);
+
+            entity.HasIndex(x => new { x.WorkoutId, x.Order })
+                .IsUnique();
+        });
+    }
+    private static void ConfigureWorkoutSplits(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<WorkoutSplit>(entity =>
+        {
+            entity.ToTable("workout_splits");
+
+            entity.HasKey(x => x.Id);
+
+            entity.Property(x => x.SplitNumber)
+                .IsRequired();
+
+            entity.Property(x => x.DistanceKm)
+                .HasPrecision(6, 3)
+                .IsRequired();
+
+            entity.Property(x => x.DurationSeconds)
+                .IsRequired();
+
+            entity.Property(x => x.AveragePaceSecondsPerKm)
+                .IsRequired();
+
+            entity.Property(x => x.StartedAt);
+
+            entity.Property(x => x.EndedAt);
+
+            entity.HasOne(x => x.Workout)
+                .WithMany(x => x.Splits)
+                .HasForeignKey(x => x.WorkoutId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(x => x.WorkoutId);
+
+            entity.HasIndex(x => new { x.WorkoutId, x.SplitNumber })
+                .IsUnique();
+        });
+    }
     private static void ConfigureTrainingWeeks(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<TrainingWeek>(entity =>

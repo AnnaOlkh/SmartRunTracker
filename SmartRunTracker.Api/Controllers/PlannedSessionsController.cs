@@ -1,18 +1,22 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SmartRunTracker.Application.Common;
 using SmartRunTracker.Application.TrainingPlans;
 
 namespace SmartRunTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/planned-sessions")]
 public sealed class PlannedSessionsController : ControllerBase
 {
     private readonly ITrainingPlanService _trainingPlanService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public PlannedSessionsController(ITrainingPlanService trainingPlanService)
+    public PlannedSessionsController(ITrainingPlanService trainingPlanService, ICurrentUserService currentUserService)
     {
         _trainingPlanService = trainingPlanService;
+        _currentUserService = currentUserService;
     }
 
     [HttpPatch("{id:int}/schedule")]
@@ -24,7 +28,7 @@ public sealed class PlannedSessionsController : ControllerBase
         try
         {
             var session = await _trainingPlanService.ScheduleSessionAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 id,
                 request,
                 cancellationToken);
@@ -53,7 +57,7 @@ public sealed class PlannedSessionsController : ControllerBase
         try
         {
             var session = await _trainingPlanService.SkipSessionAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 id,
                 cancellationToken);
 

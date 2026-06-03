@@ -1,4 +1,6 @@
-﻿namespace SmartRunTracker.Application.Workouts;
+﻿using SmartRunTracker.Application.TrainingPlans;
+
+namespace SmartRunTracker.Application.Workouts;
 
 public interface IWorkoutService
 {
@@ -7,6 +9,10 @@ public interface IWorkoutService
         CancellationToken cancellationToken = default);
 
     Task<WorkoutDto?> GetByIdAsync(
+        int userId,
+        int workoutId,
+        CancellationToken cancellationToken = default);
+    Task<WorkoutDetailsDto?> GetDetailsAsync(
         int userId,
         int workoutId,
         CancellationToken cancellationToken = default);
@@ -25,5 +31,15 @@ public interface IWorkoutService
     Task<bool> DeleteAsync(
         int userId,
         int workoutId,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PlannedSessionDto>> GetAvailablePlannedSessionsAsync(
+    int userId,
+    int workoutId,
+    CancellationToken cancellationToken = default);
+
+    Task<WorkoutDetailsDto?> LinkPlannedSessionAsync(
+        int userId,
+        int workoutId,
+        LinkWorkoutPlannedSessionRequest request,
         CancellationToken cancellationToken = default);
 }

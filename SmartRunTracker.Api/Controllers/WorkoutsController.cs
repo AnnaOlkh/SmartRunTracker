@@ -1,18 +1,23 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using SmartRunTracker.Application.Common;
+using SmartRunTracker.Application.TrainingPlans;
 using SmartRunTracker.Application.Workouts;
 
 namespace SmartRunTracker.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/workouts")]
 public sealed class WorkoutsController : ControllerBase
 {
     private readonly IWorkoutService _workoutService;
+    private readonly ICurrentUserService _currentUserService;
 
-    public WorkoutsController(IWorkoutService workoutService)
+    public WorkoutsController(IWorkoutService workoutService, ICurrentUserService currentUserService)
     {
         _workoutService = workoutService;
+        _currentUserService = currentUserService;
     }
 
     [HttpGet]
@@ -20,7 +25,7 @@ public sealed class WorkoutsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var workouts = await _workoutService.GetAllAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             cancellationToken);
 
         return Ok(workouts);
@@ -32,7 +37,24 @@ public sealed class WorkoutsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var workout = await _workoutService.GetByIdAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
+            id,
+            cancellationToken);
+
+        if (workout is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(workout);
+    }
+    [HttpGet("{id:int}/details")]
+    public async Task<ActionResult<WorkoutDetailsDto>> GetDetails(
+    int id,
+    CancellationToken cancellationToken)
+    {
+        var workout = await _workoutService.GetDetailsAsync(
+            _currentUserService.UserId,
             id,
             cancellationToken);
 
@@ -52,7 +74,7 @@ public sealed class WorkoutsController : ControllerBase
         try
         {
             var workout = await _workoutService.CreateAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 request,
                 cancellationToken);
 
@@ -79,7 +101,7 @@ public sealed class WorkoutsController : ControllerBase
         try
         {
             var workout = await _workoutService.UpdateAsync(
-                DemoUser.Id,
+                _currentUserService.UserId,
                 id,
                 request,
                 cancellationToken);
@@ -106,7 +128,7 @@ public sealed class WorkoutsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var deleted = await _workoutService.DeleteAsync(
-            DemoUser.Id,
+            _currentUserService.UserId,
             id,
             cancellationToken);
 
@@ -116,5 +138,44 @@ public sealed class WorkoutsController : ControllerBase
         }
 
         return NoContent();
+    }
+    [HttpGet("{id:int}/available-planned-sessions")]
+    public async Task<ActionResult<IReadOnlyList<PlannedSessionDto>>> GetAvailablePlannedSessions(
+    int id,
+    CancellationToken cancellationToken)
+    {
+        var sessions = await _workoutService.GetAvailablePlannedSessionsAsync(
+            _currentUserService.UserId,
+            id,
+            cancellationToken);
+
+        return Ok(sessions);
+    }
+
+    [HttpPatch("{id:int}/planned-session")]
+    public async Task<ActionResult<WorkoutDetailsDto>> LinkPlannedSession(
+        int id,
+        LinkWorkoutPlannedSessionRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var workout = await _workoutService.LinkPlannedSessionAsync(
+                _currentUserService.UserId,
+                id,
+                request,
+                cancellationToken);
+
+            if (workout is null)
+            {
+                return NotFound();
+            }
+
+            return Ok(workout);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
     }
 }

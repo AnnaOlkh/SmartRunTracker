@@ -44,3 +44,17 @@ export const demoApi = {
     });
   },
 };
+export interface DemoSeedResult {
+  userId: number;
+  goalId: number;
+  workoutCount: number;
+  gpxWorkoutCount: number;
+  from: string;
+  to: string;
+}
+
+export function seedMay2026(): Promise<DemoSeedResult> {
+  return apiRequest<DemoSeedResult>("/demo/seed-may-2026", {
+    method: "POST",
+  });
+}

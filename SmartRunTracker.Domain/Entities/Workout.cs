@@ -29,4 +29,6 @@ public class Workout
     public User User { get; set; } = null!;
 
     public PlannedSession? PlannedSession { get; set; }
+    public ICollection<WorkoutRoutePoint> RoutePoints { get; set; } = new List<WorkoutRoutePoint>();
+    public ICollection<WorkoutSplit> Splits { get; set; } = new List<WorkoutSplit>();
 }

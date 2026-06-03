@@ -48,7 +48,21 @@ public sealed class WorkoutRepository : IWorkoutRepository
                 workout => workout.Id == workoutId && workout.UserId == userId,
                 cancellationToken);
     }
-
+    public async Task<Workout?> GetDetailsByIdAsync(
+    int userId,
+    int workoutId,
+    CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.Workouts
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(workout => workout.RoutePoints)
+            .Include(workout => workout.Splits)
+            .Include(workout => workout.PlannedSession)
+            .FirstOrDefaultAsync(
+                workout => workout.Id == workoutId && workout.UserId == userId,
+                cancellationToken);
+    }
     public async Task<Workout> AddAsync(
         Workout workout,
         CancellationToken cancellationToken = default)
